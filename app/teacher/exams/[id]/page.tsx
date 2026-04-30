@@ -1,7 +1,7 @@
 import { prisma } from "@/app/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { ArrowLeft, BookOpen, Calendar, Clock, Users, BarChart } from "lucide-react";
+import { ArrowLeft, BookOpen, Calendar, Clock, Users, BarChart, Radio } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import BulkUpload from "./bulk-upload";
@@ -58,13 +58,22 @@ export default async function ExamDetailsPage({
             </div>
           </div>
         </div>
-        <Link
-          href={`/teacher/exams/${id}/results`}
-          className="flex items-center px-6 py-2.5 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg shadow-green-100 transition-all"
-        >
-          <BarChart className="w-5 h-5 mr-2" />
-          View Results
-        </Link>
+        <div className="flex space-x-3">
+          <Link
+            href={`/teacher/exams/${id}/live`}
+            className="flex items-center px-6 py-2.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-100 transition-all"
+          >
+            <Radio className="w-5 h-5 mr-2 animate-pulse" />
+            Monitor Live
+          </Link>
+          <Link
+            href={`/teacher/exams/${id}/results`}
+            className="flex items-center px-6 py-2.5 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg shadow-green-100 transition-all"
+          >
+            <BarChart className="w-5 h-5 mr-2" />
+            View Results
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-8">

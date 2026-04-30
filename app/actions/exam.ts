@@ -4,6 +4,7 @@ import { prisma } from "@/app/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { revalidatePath } from "next/cache";
+import { pusherServer } from "@/app/lib/pusher-server";
 
 export async function createExam(data: {
   title: string;
@@ -326,6 +327,11 @@ export async function startExamSession(examId: string) {
         status: "STARTED",
         startTime: new Date(),
         questionsOrder: shuffledIds,
+      },
+      include: {
+        student: {
+          select: { name: true, prn: true }
+        }
       }
     });
   } else {
@@ -335,9 +341,22 @@ export async function startExamSession(examId: string) {
         status: "STARTED",
         startTime: new Date(),
         questionsOrder: shuffledIds,
+      },
+      include: {
+        student: {
+          select: { name: true, prn: true }
+        }
       }
     });
   }
+
+  // Trigger Pusher event for the teacher's live dashboard
+  await pusherServer.trigger(`exam-${examId}`, "student-joined", {
+    studentId,
+    studentName: examSession.student.name,
+    prn: examSession.student.prn,
+    startTime: examSession.startTime,
+  });
 
   return examSession;
 }
@@ -383,7 +402,7 @@ export async function saveSubmission(
   }
 
   // Upsert submission
-  return await prisma.submission.upsert({
+  const submission = await prisma.submission.upsert({
     where: {
       sessionId_questionId: {
         sessionId,
@@ -404,6 +423,19 @@ export async function saveSubmission(
       language: answer.language,
     }
   });
+
+  // Fetch count of submissions for this session to show progress
+  const answeredCount = await prisma.submission.count({
+    where: { sessionId }
+  });
+
+  // Trigger Pusher event
+  await pusherServer.trigger(`exam-${examSession.examId}`, "answer-saved", {
+    studentId: session.user.id,
+    answeredCount,
+  });
+
+  return submission;
 }
 
 /**
@@ -493,6 +525,11 @@ export async function submitExam(sessionId: string) {
     });
   });
 
+  // Trigger Pusher event
+  await pusherServer.trigger(`exam-${examSession.examId}`, "student-submitted", {
+    studentId: session.user.id,
+  });
+
   revalidatePath("/student");
   revalidatePath(`/student/exams/${examSession.examId}`);
   revalidatePath("/teacher/exams/[id]/results", "page");
@@ -508,7 +545,7 @@ export async function logTabSwitch(sessionId: string) {
     throw new Error("Unauthorized");
   }
 
-  return await prisma.studentExamSession.update({
+  const updatedSession = await prisma.studentExamSession.update({
     where: { 
       id: sessionId,
       studentId: session.user.id
@@ -517,6 +554,29 @@ export async function logTabSwitch(sessionId: string) {
       tabSwitches: {
         increment: 1
       }
+    },
+    include: {
+      student: {
+        select: {
+          name: true,
+          prn: true,
+        }
+      },
+      exam: {
+        select: {
+          id: true,
+        }
+      }
     }
   });
+
+  // Trigger Pusher event for the teacher's live dashboard
+  await pusherServer.trigger(`exam-${updatedSession.exam.id}`, "tab-switch", {
+    studentId: session.user.id,
+    studentName: updatedSession.student.name,
+    prn: updatedSession.student.prn,
+    totalSwitches: updatedSession.tabSwitches,
+  });
+
+  return updatedSession;
 }

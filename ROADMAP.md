@@ -32,24 +32,24 @@ Here is the detailed roadmap based on the Feature-Driven (Vertical Slices) appro
    3. Question Bank Management: UI and server actions to add, edit, and delete MCQs and coding problems for specific exams.
    4. Exam Analytics (Basic): Outline the dashboard view to eventually show percentiles and top scorers.
 
-  Phase 3: Student Exam Environment
-   1. Secure Exam Layout: Build a full-screen, CET-style UI header (Photo, Name, PRN).
-   2. Exam Session Initialization: Logic to shuffle questions on start and save the state persistently to StudentExamSession to prevent refresh exploits.
-   3. Question Interfaces:
+  Phase 3: Student Exam Environment (Completed)
+   1. Secure Exam Layout: Build a full-screen, CET-style UI header (Photo, Name, PRN). (Done)
+   2. Exam Session Initialization: Logic to shuffle questions on start and save the state persistently to StudentExamSession to prevent refresh exploits. (Done)
+   3. Question Interfaces: (Done)
       - MCQ Interface (selection, navigation).
       - Coding Interface (integration with Judge0 API via backend for code execution).
-   4. Exam Submission: Server actions to securely submit answers, calculate scores, and mark the exam as completed.
+   4. Exam Submission: Server actions to securely submit answers, calculate scores, and mark the exam as completed. (Done)
 
-  Phase 4: Anti-Cheat & Real-time Features
-   1. Real-time Infrastructure: Integrate Pusher into the project.
+  Phase 4: Anti-Cheat & Real-time Features (Completed)
+   1. Real-time Infrastructure: Integrate Pusher into the project. (Done)
    2. Student Side Anti-Cheat:
-      - Implement tab-switch tracking (visibility change events).
-      - Implement full-screen exit detection (blurring screen, hiding questions).
+      - Implement tab-switch tracking (visibility change events). (Done)
+      - Implement full-screen exit detection (blurring screen, hiding questions). (Done)
    3. Teacher Live Monitoring:
-      - Dashboard UI listening to Pusher events to track active students and live tab-switch warnings.
-      - Force-submit command via Pusher from teacher to specific students.
+      - Dashboard UI listening to Pusher events to track active students and live tab-switch warnings. (Done)
+      - Force-submit command via Pusher from teacher to specific students. (Planned/Optional)
 
-  Phase 5: Polish, Analytics, & Exports
+  Phase 5: Polish, Analytics, & Exports (Current)
    1. Advanced Analytics: Finalize the teacher dashboard analytics (question difficulty metrics).
    2. Exports: Implement xlsx and jspdf generation for student reports.
    3. Final Testing: Thorough end-to-end testing of the full flow.
