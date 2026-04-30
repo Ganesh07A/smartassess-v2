@@ -536,6 +536,75 @@ export async function submitExam(sessionId: string) {
 }
 
 /**
+ * Fetches advanced analytics for a specific exam.
+ */
+export async function getExamAnalytics(examId: string) {
+  const session = await getServerSession(authOptions);
+
+  if (!session || session.user.role !== "TEACHER") {
+    throw new Error("Unauthorized");
+  }
+
+  const exam = await prisma.exam.findUnique({
+    where: { id: examId },
+    include: {
+      questions: {
+        include: {
+          question: true
+        }
+      },
+      sessions: {
+        where: { status: "COMPLETED" },
+        include: {
+          submissions: true
+        }
+      }
+    }
+  });
+
+  if (!exam) throw new Error("Exam not found");
+
+  const totalCompleted = exam.sessions.length;
+  
+  // Question-level metrics
+  const questionMetrics = exam.questions.map(eq => {
+    const submissions = exam.sessions.flatMap(s => 
+      s.submissions.filter(sub => sub.questionId === eq.questionId)
+    );
+    
+    const correctCount = submissions.filter(s => s.isCorrect).length;
+    const avgScore = submissions.reduce((sum, s) => sum + (s.pointsAwarded || 0), 0) / (totalCompleted || 1);
+    const successRate = (correctCount / (totalCompleted || 1)) * 100;
+
+    let difficulty = "Medium";
+    if (successRate > 80) difficulty = "Easy";
+    else if (successRate < 40) difficulty = "Hard";
+
+    return {
+      questionId: eq.questionId,
+      content: eq.question.content,
+      type: eq.question.type,
+      successRate,
+      avgScore,
+      difficulty,
+      totalPoints: eq.points
+    };
+  });
+
+  // Score distribution
+  const scores = exam.sessions.map(s => 
+    s.submissions.reduce((sum, sub) => sum + (sub.pointsAwarded || 0), 0)
+  );
+
+  return {
+    totalCompleted,
+    questionMetrics,
+    scores,
+    maxPossibleScore: exam.questions.reduce((sum, q) => sum + q.points, 0)
+  };
+}
+
+/**
  * Logs a tab switch or full-screen exit event.
  */
 export async function logTabSwitch(sessionId: string) {
