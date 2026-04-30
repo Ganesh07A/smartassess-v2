@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { FileDown, FileSpreadsheet, Printer } from "lucide-react";
+import { FileSpreadsheet, Printer } from "lucide-react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
@@ -12,7 +12,18 @@ interface ResultExporterProps {
     batch: { name: string };
     _count: { questions: number };
   };
-  results: any[];
+  results: {
+    student: {
+      name: string | null;
+      prn?: string | null;
+      email: string | null;
+    };
+    status: string;
+    correctAnswers: number;
+    totalScore: number;
+    updatedAt: string | Date;
+    tabSwitches: number;
+  }[];
 }
 
 export default function ResultExporter({ exam, results }: ResultExporterProps) {
@@ -22,9 +33,9 @@ export default function ResultExporter({ exam, results }: ResultExporterProps) {
     setIsExporting(true);
     try {
       const data = results.map((res) => ({
-        "Student Name": res.student.name,
+        "Student Name": res.student.name || "Unknown",
         "PRN": res.student.prn || "N/A",
-        "Email": res.student.email,
+        "Email": res.student.email || "N/A",
         "Status": res.status,
         "Correct Answers": `${res.correctAnswers}/${exam._count.questions}`,
         "Total Score": res.totalScore.toFixed(2),
@@ -52,6 +63,7 @@ export default function ResultExporter({ exam, results }: ResultExporterProps) {
   const exportToPDF = () => {
     setIsExporting(true);
     try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const doc = new jsPDF() as any;
       const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -78,6 +90,7 @@ export default function ResultExporter({ exam, results }: ResultExporterProps) {
         res.tabSwitches.toString()
       ]);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (doc as any).autoTable({
         startY: 55,
         head: [['Student', 'PRN', 'Status', 'Correct', 'Score', 'Warnings']],
@@ -91,6 +104,7 @@ export default function ResultExporter({ exam, results }: ResultExporterProps) {
       });
 
       // Footer
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const finalY = (doc as any).lastAutoTable.finalY + 20;
       doc.setFontSize(10);
       doc.setTextColor(150);

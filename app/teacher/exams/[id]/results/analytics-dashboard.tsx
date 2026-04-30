@@ -1,12 +1,10 @@
 "use client";
 
 import { 
-  BarChart3, 
   TrendingUp, 
   Target, 
   AlertCircle,
   CheckCircle2,
-  XCircle,
   HelpCircle
 } from "lucide-react";
 

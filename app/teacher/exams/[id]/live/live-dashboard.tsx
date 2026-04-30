@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { pusherClient } from "@/app/lib/pusher-client";
 import { 
   Users, 
@@ -43,12 +43,20 @@ export default function LiveDashboard({
 
   const [alerts, setAlerts] = useState<{ id: string; message: string; type: 'warning' | 'info' }[]>([]);
 
+  const addAlert = useCallback((message: string, type: 'warning' | 'info') => {
+    const id = Math.random().toString(36).substring(7);
+    setAlerts(prev => [{ id, message, type }, ...prev].slice(0, 5));
+    setTimeout(() => {
+      setAlerts(prev => prev.filter(a => a.id !== id));
+    }, 5000);
+  }, []);
+
   useEffect(() => {
     if (!pusherClient) return;
 
     const channel = pusherClient.subscribe(`exam-${examId}`);
 
-    channel.bind("student-joined", (data: any) => {
+    channel.bind("student-joined", (data: { studentId: string; studentName: string; prn: string; startTime: string }) => {
       setSessions(prev => ({
         ...prev,
         [data.studentId]: {
@@ -66,7 +74,7 @@ export default function LiveDashboard({
       addAlert(`${data.studentName} joined the exam`, 'info');
     });
 
-    channel.bind("tab-switch", (data: any) => {
+    channel.bind("tab-switch", (data: { studentId: string; studentName: string; totalSwitches: number }) => {
       setSessions(prev => ({
         ...prev,
         [data.studentId]: {
@@ -78,7 +86,7 @@ export default function LiveDashboard({
       addAlert(`${data.studentName} switched tabs! (Total: ${data.totalSwitches})`, 'warning');
     });
 
-    channel.bind("answer-saved", (data: any) => {
+    channel.bind("answer-saved", (data: { studentId: string; answeredCount: number }) => {
       setSessions(prev => ({
         ...prev,
         [data.studentId]: {
@@ -89,7 +97,7 @@ export default function LiveDashboard({
       }));
     });
 
-    channel.bind("student-submitted", (data: any) => {
+    channel.bind("student-submitted", (data: { studentId: string }) => {
       setSessions(prev => ({
         ...prev,
         [data.studentId]: {
@@ -103,17 +111,9 @@ export default function LiveDashboard({
     });
 
     return () => {
-      pusherClient.unsubscribe(`exam-${examId}`);
+      pusherClient?.unsubscribe(`exam-${examId}`);
     };
-  }, [examId, sessions]);
-
-  const addAlert = (message: string, type: 'warning' | 'info') => {
-    const id = Math.random().toString(36).substring(7);
-    setAlerts(prev => [{ id, message, type }, ...prev].slice(0, 5));
-    setTimeout(() => {
-      setAlerts(prev => prev.filter(a => a.id !== id));
-    }, 5000);
-  };
+  }, [examId, sessions, addAlert]);
 
   const sessionList = Object.values(sessions).sort((a, b) => 
     new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()

@@ -297,7 +297,12 @@ export async function startExamSession(examId: string) {
 
   // Check if session already exists
   let examSession = await prisma.studentExamSession.findUnique({
-    where: { studentId_examId: { studentId, examId } }
+    where: { studentId_examId: { studentId, examId } },
+    include: {
+      student: {
+        select: { name: true, prn: true }
+      }
+    }
   });
 
   if (examSession && examSession.status !== "NOT_STARTED") {
