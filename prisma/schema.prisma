@@ -1,0 +1,178 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  TEACHER
+  STUDENT
+}
+
+enum QuestionType {
+  MCQ
+  CODING
+}
+
+enum SessionStatus {
+  NOT_STARTED
+  STARTED
+  PAUSED
+  COMPLETED
+  FORCE_SUBMITTED
+}
+
+model User {
+  id            String    @id @default(uuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  password      String?
+  image         String?
+  role          Role      @default(STUDENT)
+  prn           String?   @unique // Permanent Registration Number for students
+
+  // Relations
+  managedBatches Batch[]   @relation("TeacherBatches")
+  enrolledBatches Batch[]  @relation("StudentBatches")
+  examSessions    StudentExamSession[]
+  
+  accounts      Account[]
+  sessions      Session[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// NextAuth Models
+model Account {
+  id                 String  @id @default(uuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?  @db.Text
+  access_token       String?  @db.Text
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?  @db.Text
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Batch {
+  id        String   @id @default(uuid())
+  name      String
+  teacherId String
+  teacher   User     @relation("TeacherBatches", fields: [teacherId], references: [id])
+  students  User[]   @relation("StudentBatches")
+  exams     Exam[]
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Exam {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  startTime   DateTime
+  endTime     DateTime
+  duration    Int      // Duration in minutes
+  batchId     String
+  batch       Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  
+  questions   ExamQuestion[]
+  sessions    StudentExamSession[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Question {
+  id            String       @id @default(uuid())
+  type          QuestionType
+  content       String       // The question text (supports markdown)
+  options       Json?        // For MCQs: { "A": "...", "B": "..." }
+  correctAnswer String?      // For MCQs: "A"; for coding: maybe a reference solution
+  testCases     Json?        // For coding: [{ "input": "...", "output": "..." }]
+  points        Float        @default(1.0)
+  
+  exams         ExamQuestion[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model ExamQuestion {
+  id         String   @id @default(uuid())
+  examId     String
+  questionId String
+  points     Float    @default(1.0)
+  order      Int      // Default order
+
+  exam       Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([examId, questionId])
+}
+
+model StudentExamSession {
+  id             String        @id @default(uuid())
+  studentId      String
+  examId         String
+  status         SessionStatus @default(NOT_STARTED)
+  startTime      DateTime?
+  endTime        DateTime?
+  questionsOrder String[]      // Array of Question IDs or ExamQuestion IDs in randomized order
+  currentTimer   Int?          // Remaining time in seconds
+  tabSwitches    Int           @default(0)
+  isBlurred      Boolean       @default(false)
+  
+  student        User          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  exam           Exam          @relation(fields: [examId], references: [id], onDelete: Cascade)
+  submissions    Submission[]
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([studentId, examId])
+}
+
+model Submission {
+  id            String             @id @default(uuid())
+  sessionId     String
+  questionId    String
+  answer        Json               // MCQ choice or code snippet
+  isCorrect     Boolean?
+  pointsAwarded Float?
+  submittedAt   DateTime           @default(now())
+  
+  session       StudentExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, questionId])
+}
