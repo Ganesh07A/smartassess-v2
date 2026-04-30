@@ -71,9 +71,14 @@ export default async function TakeExamPage({
   return (
     <ExamClient 
       exam={exam} 
-      session={examSession} 
-      questions={sortedQuestions}
-      initialSubmissions={existingSubmissions}
+      session={{
+        ...examSession,
+        startTime: examSession.startTime ?? new Date()
+      }} 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      questions={sortedQuestions as any}
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      initialSubmissions={existingSubmissions as any}
       student={{
         ...session.user,
         prn: (await prisma.user.findUnique({ where: { id: session.user.id }, select: { prn: true } }))?.prn

@@ -19,8 +19,8 @@ interface Question {
   id: string;
   type: "MCQ" | "CODING";
   content: string;
-  options?: Record<string, string>;
-  testCases?: { input: string; output: string }[];
+  options?: Record<string, string> | null;
+  testCases?: { input: string; output: string }[] | null;
   points: number;
 }
 
@@ -34,14 +34,14 @@ interface Exam {
 
 interface ExamSession {
   id: string;
-  startTime: Date | string;
+  startTime: Date | string | null;
 }
 
 interface Submission {
   questionId: string;
-  mcqAnswer?: string;
-  codeAnswer?: string;
-  language?: string;
+  mcqAnswer?: string | null;
+  codeAnswer?: string | null;
+  language?: string | null;
 }
 
 interface Student {
@@ -122,7 +122,8 @@ export default function ExamClient({
       };
       
       // Call async save in the background
-      saveSubmission(session.id, questionId, fullAnswer).catch(err => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      saveSubmission(session.id, questionId, fullAnswer as any).catch(err => {
         console.error("Failed to save answer:", err);
       });
 
@@ -152,7 +153,7 @@ export default function ExamClient({
   // Initialize Timer
   useEffect(() => {
     const examEndTime = new Date(exam.endTime).getTime();
-    const sessionEndTime = new Date(new Date(session.startTime).getTime() + exam.duration * 60 * 1000).getTime();
+    const sessionEndTime = new Date(new Date(session.startTime as string | Date).getTime() + exam.duration * 60 * 1000).getTime();
     const actualEndTime = Math.min(examEndTime, sessionEndTime);
     
     const updateTimer = () => {
@@ -363,7 +364,7 @@ export default function ExamClient({
                         }`}>
                           {key}
                         </div>
-                        <span className="text-lg font-medium">{value}</span>
+                        <span className="text-lg font-medium">{value as string}</span>
                       </button>
                     );
                   })}
@@ -374,7 +375,7 @@ export default function ExamClient({
                   <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
                     <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">Visible Test Cases</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {currentQuestion.testCases?.slice(0, 2).map((tc, i) => (
+                      {currentQuestion.testCases?.slice(0, 2).map((tc: { input: string; output: string }, i: number) => (
                         <div key={i} className="bg-white p-4 rounded-xl border border-gray-100 text-sm">
                           <div className="flex justify-between mb-2">
                             <span className="font-bold text-gray-400 uppercase text-[10px]">Input</span>

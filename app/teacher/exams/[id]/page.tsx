@@ -106,7 +106,8 @@ export default async function ExamDetailsPage({
                     <p className="text-black font-semibold line-clamp-2">{eq.question.content}</p>
                   </div>
                   <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center space-x-1">
-                    <EditQuestionModal examId={id} question={eq.question} />
+                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                    <EditQuestionModal examId={id} question={eq.question as any} />
                     <DeleteQuestionButton examId={id} questionId={eq.questionId} />
                   </div>
                 </div>
