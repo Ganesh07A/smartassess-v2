@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -30,7 +29,7 @@ export default function LoginPage() {
         // Use window.location.href for a full reload to ensure the session is picked up
         window.location.href = "/";
       }
-    } catch (_err) {
+    } catch {
       setError("An error occurred. Please try again.");
     } finally {
       setLoading(false);
