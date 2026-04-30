@@ -5,8 +5,6 @@ import * as XLSX from "xlsx";
 import { Upload, FileSpreadsheet, Download, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { uploadQuestions } from "@/app/actions/exam";
 
-import { useRouter } from "next/navigation";
-
 interface ExcelMCQ {
   Type: string;
   Content: string;

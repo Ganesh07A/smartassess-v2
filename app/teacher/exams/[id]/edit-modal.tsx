@@ -9,9 +9,9 @@ interface Question {
   id: string;
   type: "MCQ" | "CODING";
   content: string;
-  options: any;
+  options: Record<string, string> | null;
   correctAnswer: string | null;
-  testCases: any;
+  testCases: { input: string; output: string }[] | null;
   points: number;
 }
 

@@ -62,9 +62,9 @@ export async function runCode(code: string, language: string, stdin?: string) {
     }
 
     return await response.json();
-  } catch (error: any) {
+  } catch (error) {
     console.error("Judge0 Error:", error);
-    throw new Error(error.message || "Code execution failed");
+    throw new Error(error instanceof Error ? error.message : "Code execution failed");
   }
 }
 

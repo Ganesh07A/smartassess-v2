@@ -146,7 +146,7 @@ export default function ExamCreator({ batches }: { batches: Batch[] }) {
                   className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
                 />
                 <label htmlFor="allowRunCode" className="text-sm font-bold text-blue-700 cursor-pointer">
-                  Enable "Run Code" for Students (Practice/Lab Mode)
+                  Enable &quot;Run Code&quot; for Students (Practice/Lab Mode)
                 </label>
               </div>
               </div>

@@ -15,12 +15,46 @@ import { saveSubmission, submitExam, logTabSwitch } from "@/app/actions/exam";
 import { runCode } from "@/app/actions/judge0";
 import { useRouter } from "next/navigation";
 
+interface Question {
+  id: string;
+  type: "MCQ" | "CODING";
+  content: string;
+  options?: Record<string, string>;
+  testCases?: { input: string; output: string }[];
+  points: number;
+}
+
+interface Exam {
+  id: string;
+  title: string;
+  endTime: Date | string;
+  duration: number;
+  allowRunCode: boolean;
+}
+
+interface ExamSession {
+  id: string;
+  startTime: Date | string;
+}
+
+interface Submission {
+  questionId: string;
+  mcqAnswer?: string;
+  codeAnswer?: string;
+  language?: string;
+}
+
+interface Student {
+  name?: string | null;
+  prn?: string | null;
+}
+
 interface ExamClientProps {
-  exam: any;
-  session: any;
-  questions: any[];
-  initialSubmissions: any[];
-  student: any;
+  exam: Exam;
+  session: ExamSession;
+  questions: Question[];
+  initialSubmissions: Submission[];
+  student: Student;
 }
 
 export default function ExamClient({ 
@@ -33,27 +67,87 @@ export default function ExamClient({
   const router = useRouter();
   const [currentIdx, setCurrentIdx] = useState(0);
   const [selectedLanguage, setSelectedLanguage] = useState("python");
-  const [submissions, setSubmissions] = useState<Record<string, any>>(() => {
-    const map: Record<string, any> = {};
+  const [submissions, setSubmissions] = useState<Record<string, Submission>>(() => {
+    const map: Record<string, Submission> = {};
     initialSubmissions.forEach(s => {
-      map[s.questionId] = { mcqAnswer: s.mcqAnswer, codeAnswer: s.codeAnswer, language: s.language };
+      map[s.questionId] = { questionId: s.questionId, mcqAnswer: s.mcqAnswer, codeAnswer: s.codeAnswer, language: s.language };
     });
     return map;
   });
   const [timeLeft, setTimeLeft] = useState(0);
   const [isFullScreen, setIsFullScreen] = useState(false);
   const [isBlurred, setIsBlurred] = useState(false);
-  const [tabSwitches, setTabSwitches] = useState(0);
   const [isExecuting, setIsExecuting] = useState(false);
-  const [executionResult, setExecutionResult] = useState<any>(null);
+  const [executionResult, setExecutionResult] = useState<{
+    status?: { id: number; description: string };
+    message?: string;
+    stdout?: string;
+    stderr?: string;
+    compile_output?: string;
+  } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const currentQuestion = questions[currentIdx];
 
-  // Reset execution result when changing questions
-  useEffect(() => {
+  const handleFinishExam = useCallback(async () => {
+    if (confirm("Are you sure you want to finish the exam? All your answers will be evaluated and submitted.")) {
+      setIsSubmitting(true);
+      try {
+        await submitExam(session.id);
+        if (document.fullscreenElement) {
+          document.exitFullscreen();
+        }
+        router.push(`/student/exams/${exam.id}/result`);
+        router.refresh();
+      } catch (err) {
+        console.error(err);
+        alert("Failed to submit exam. Please check your connection.");
+        setIsSubmitting(false);
+      }
+    }
+  }, [session.id, exam.id, router]);
+
+  const handleIdxChange = useCallback((newIdx: number) => {
+    setCurrentIdx(newIdx);
     setExecutionResult(null);
-  }, [currentIdx]);
+  }, []);
+
+  const handleSaveAnswer = useCallback(async (questionId: string, answer: Partial<Submission>) => {
+    setSubmissions(prev => {
+      const fullAnswer: Submission = {
+        ...prev[questionId],
+        questionId,
+        ...answer,
+        language: questions.find(q => q.id === questionId)?.type === "CODING" ? selectedLanguage : undefined
+      };
+      
+      // Call async save in the background
+      saveSubmission(session.id, questionId, fullAnswer).catch(err => {
+        console.error("Failed to save answer:", err);
+      });
+
+      return { ...prev, [questionId]: fullAnswer };
+    });
+  }, [session.id, questions, selectedLanguage]);
+
+  const handleRunCode = async () => {
+    const code = submissions[currentQuestion.id]?.codeAnswer;
+    if (!code) return;
+
+    setIsExecuting(true);
+    setExecutionResult(null);
+    try {
+      const result = await runCode(code, selectedLanguage);
+      setExecutionResult(result);
+    } catch (err) {
+      setExecutionResult({
+        status: { id: 0, description: "Error" },
+        message: err instanceof Error ? err.message : "Unknown error"
+      });
+    } finally {
+      setIsExecuting(false);
+    }
+  };
 
   // Initialize Timer
   useEffect(() => {
@@ -74,14 +168,13 @@ export default function ExamClient({
     updateTimer();
     const timer = setInterval(updateTimer, 1000);
     return () => clearInterval(timer);
-  }, [exam.endTime, exam.duration, session.startTime]);
+  }, [exam.endTime, exam.duration, session.startTime, handleFinishExam]);
 
   // Anti-Cheat: Visibility Change
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (document.hidden) {
         setIsBlurred(true);
-        setTabSwitches(prev => prev + 1);
         try {
           await logTabSwitch(session.id);
         } catch (err) {
@@ -120,36 +213,6 @@ export default function ExamClient({
     }
   };
 
-  const handleSaveAnswer = async (questionId: string, answer: any) => {
-    const fullAnswer = {
-      ...answer,
-      language: currentQuestion.type === "CODING" ? selectedLanguage : undefined
-    };
-    setSubmissions(prev => ({ ...prev, [questionId]: fullAnswer }));
-    try {
-      await saveSubmission(session.id, questionId, fullAnswer);
-    } catch (err) {
-      console.error("Failed to save answer:", err);
-    }
-  };
-
-  const handleFinishExam = async () => {
-    if (confirm("Are you sure you want to finish the exam? All your answers will be evaluated and submitted.")) {
-      setIsSubmitting(true);
-      try {
-        await submitExam(session.id);
-        if (document.fullscreenElement) {
-          document.exitFullscreen();
-        }
-        router.push(`/student/exams/${exam.id}/result`);
-        router.refresh();
-      } catch (err) {
-        alert("Failed to submit exam. Please check your connection.");
-        setIsSubmitting(false);
-      }
-    }
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>, questionId: string) => {
     const textarea = e.currentTarget;
     const { value, selectionStart, selectionEnd } = textarea;
@@ -180,25 +243,6 @@ export default function ExamClient({
           textarea.selectionStart = textarea.selectionEnd = selectionStart + indentation.length + 5;
         }, 0);
       }
-    }
-  };
-
-  const handleRunCode = async () => {
-    const code = submissions[currentQuestion.id]?.codeAnswer;
-    if (!code) return;
-
-    setIsExecuting(true);
-    setExecutionResult(null);
-    try {
-      const result = await runCode(code, selectedLanguage);
-      setExecutionResult(result);
-    } catch (err: any) {
-      setExecutionResult({
-        status: { id: 0, description: "Error" },
-        message: err.message
-      });
-    } finally {
-      setIsExecuting(false);
     }
   };
 
@@ -302,7 +346,7 @@ export default function ExamClient({
 
               {currentQuestion.type === "MCQ" ? (
                 <div className="grid grid-cols-1 gap-4 mt-10">
-                  {Object.entries(currentQuestion.options as Record<string, string>).map(([key, value]) => {
+                  {Object.entries(currentQuestion.options || {}).map(([key, value]) => {
                     const isSelected = submissions[currentQuestion.id]?.mcqAnswer === key;
                     return (
                       <button
@@ -330,7 +374,7 @@ export default function ExamClient({
                   <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
                     <h4 className="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">Visible Test Cases</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {(currentQuestion.testCases as any[])?.slice(0, 2).map((tc, i) => (
+                      {currentQuestion.testCases?.slice(0, 2).map((tc, i) => (
                         <div key={i} className="bg-white p-4 rounded-xl border border-gray-100 text-sm">
                           <div className="flex justify-between mb-2">
                             <span className="font-bold text-gray-400 uppercase text-[10px]">Input</span>
@@ -426,7 +470,7 @@ export default function ExamClient({
                           )}
                         </div>
                       ) : (
-                        <div className="text-gray-600 italic">Click "Run Code" to see results.</div>
+                        <div className="text-gray-600 italic">Click &quot;Run Code&quot; to see results.</div>
                       )}
                     </div>
                   </div>
@@ -437,7 +481,7 @@ export default function ExamClient({
             <div className="flex justify-between items-center">
               <button
                 disabled={currentIdx === 0}
-                onClick={() => setCurrentIdx(prev => prev - 1)}
+                onClick={() => handleIdxChange(currentIdx - 1)}
                 className="flex items-center px-6 py-3 bg-white border-2 border-gray-100 text-gray-600 font-bold rounded-2xl hover:bg-gray-50 transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-sm"
               >
                 <ChevronLeft className="w-5 h-5 mr-2" />
@@ -453,7 +497,7 @@ export default function ExamClient({
                 </button>
                 {currentIdx < questions.length - 1 ? (
                   <button
-                    onClick={() => setCurrentIdx(prev => prev + 1)}
+                    onClick={() => handleIdxChange(currentIdx + 1)}
                     className="flex items-center px-10 py-3 bg-blue-600 text-white font-bold rounded-2xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all"
                   >
                     Next Question
@@ -487,7 +531,7 @@ export default function ExamClient({
                 return (
                   <button
                     key={q.id}
-                    onClick={() => setCurrentIdx(i)}
+                    onClick={() => handleIdxChange(i)}
                     className={`w-12 h-12 rounded-xl text-sm font-bold transition-all border-2 flex items-center justify-center ${
                       isCurrent 
                         ? "border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-100" 
