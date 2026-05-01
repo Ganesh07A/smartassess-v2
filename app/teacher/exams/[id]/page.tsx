@@ -8,6 +8,7 @@ import BulkUpload from "./bulk-upload";
 import ManualQuestionAdder from "./manual-adder";
 import DeleteQuestionButton from "./delete-button";
 import EditQuestionModal from "./edit-modal";
+import AIGenerator from "./ai-generator";
 
 export default async function ExamDetailsPage({ 
   params 
@@ -40,8 +41,8 @@ export default async function ExamDetailsPage({
   }
 
   return (
-    <div className="max-w-5xl mx-auto">
-      <div className="mb-8 flex items-center justify-between">
+    <div className="max-w-6xl mx-auto">
+      <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center">
           <Link
             href="/teacher/exams"
@@ -50,27 +51,27 @@ export default async function ExamDetailsPage({
             <ArrowLeft className="w-6 h-6 text-gray-600" />
           </Link>
           <div>
-            <h2 className="text-3xl font-bold text-gray-800">{exam.title}</h2>
-            <div className="flex items-center text-sm text-gray-500 mt-1 space-x-4">
-              <span className="flex items-center"><Users className="w-4 h-4 mr-1" /> {exam.batch.name}</span>
-              <span className="flex items-center"><Clock className="w-4 h-4 mr-1" /> {exam.duration} mins</span>
-              <span className="flex items-center"><Calendar className="w-4 h-4 mr-1" /> {new Date(exam.startTime).toLocaleDateString()}</span>
+            <h2 className="text-3xl font-black text-gray-900 tracking-tight">{exam.title}</h2>
+            <div className="flex items-center text-xs font-bold text-gray-500 mt-1 space-x-4 uppercase tracking-wider">
+              <span className="flex items-center"><Users className="w-3.5 h-3.5 mr-1.5" /> {exam.batch.name}</span>
+              <span className="flex items-center"><Clock className="w-3.5 h-3.5 mr-1.5" /> {exam.duration} mins</span>
+              <span className="flex items-center"><Calendar className="w-3.5 h-3.5 mr-1.5" /> {new Date(exam.startTime).toLocaleDateString()}</span>
             </div>
           </div>
         </div>
         <div className="flex space-x-3">
           <Link
             href={`/teacher/exams/${id}/live`}
-            className="flex items-center px-6 py-2.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-100 transition-all"
+            className="flex items-center px-6 py-2.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 shadow-lg shadow-red-100 transition-all text-sm"
           >
-            <Radio className="w-5 h-5 mr-2 animate-pulse" />
+            <Radio className="w-4 h-4 mr-2 animate-pulse" />
             Monitor Live
           </Link>
           <Link
             href={`/teacher/exams/${id}/results`}
-            className="flex items-center px-6 py-2.5 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg shadow-green-100 transition-all"
+            className="flex items-center px-6 py-2.5 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg shadow-green-100 transition-all text-sm"
           >
-            <BarChart className="w-5 h-5 mr-2" />
+            <BarChart className="w-4 h-4 mr-2" />
             View Results
           </Link>
         </div>
@@ -78,8 +79,9 @@ export default async function ExamDetailsPage({
 
       <div className="grid grid-cols-1 gap-8">
         {/* Management Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <BulkUpload examId={id} />
+          <AIGenerator examId={id} />
           <div className="bg-white p-6 rounded-xl border shadow-sm flex flex-col justify-center items-center text-center">
             <BookOpen className="w-10 h-10 text-blue-600 mb-4" />
             <h3 className="text-lg font-semibold mb-2 text-gray-800">Manual Addition</h3>
