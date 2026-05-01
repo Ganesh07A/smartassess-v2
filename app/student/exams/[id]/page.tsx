@@ -65,6 +65,7 @@ export default async function TakeExamPage({
       mcqAnswer: true,
       codeAnswer: true,
       isCorrect: true,
+      language: true,
     }
   });
 
@@ -75,10 +76,20 @@ export default async function TakeExamPage({
         ...examSession,
         startTime: examSession.startTime ?? new Date()
       }} 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      questions={sortedQuestions as any}
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      initialSubmissions={existingSubmissions as any}
+      questions={sortedQuestions.map(q => ({
+        id: q.id,
+        type: q.type as "MCQ" | "CODING",
+        content: q.content,
+        options: q.options as Record<string, string>,
+        testCases: q.testCases as { input: string; output: string }[],
+        points: q.points
+      }))}
+      initialSubmissions={existingSubmissions.map(s => ({
+        questionId: s.questionId,
+        mcqAnswer: s.mcqAnswer,
+        codeAnswer: s.codeAnswer,
+        language: s.language as string | null
+      }))}
       student={{
         ...session.user,
         prn: (await prisma.user.findUnique({ where: { id: session.user.id }, select: { prn: true } }))?.prn
