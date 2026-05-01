@@ -1,50 +1,137 @@
 "use client";
 
 import { ReactNode } from "react";
+import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
+import { 
+  LayoutDashboard, 
+  History, 
+  Settings, 
+  LogOut,
+  Command,
+  ChevronRight,
+  Bell,
+  GraduationCap
+} from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
-import { LogOut, User as UserIcon } from "lucide-react";
 
 export default function StudentLayout({ children }: { children: ReactNode }) {
   const { data: session, status } = useSession();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentFilter = searchParams.get("filter");
 
   if (status === "loading") {
-    return <div className="h-screen flex items-center justify-center">Loading...</div>;
+    return (
+      <div className="h-screen flex flex-col items-center justify-center bg-[#fdfdfd]">
+        <div className="w-8 h-8 border-2 border-black/10 border-t-black rounded-full animate-spin"></div>
+      </div>
+    );
   }
 
   if (!session || session.user.role !== "STUDENT") {
     redirect("/login");
   }
 
+  const navItems = [
+    { name: "My Dashboard", href: "/student", icon: LayoutDashboard, filter: null },
+    { name: "Active Exams", href: "/student?filter=active", icon: GraduationCap, filter: "active" },
+    { name: "Completed", href: "/student?filter=completed", icon: History, filter: "completed" },
+    { name: "Settings", href: "/student/settings", icon: Settings, filter: null },
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Student Header */}
-      <header className="bg-white border-b shadow-sm px-8 py-4 flex justify-between items-center">
-        <div className="flex items-center space-x-4">
-          <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
-            <UserIcon className="w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-gray-800">{session.user.name}</h1>
-            <p className="text-xs text-gray-500 uppercase tracking-wider">Student Portal</p>
+    <div className="flex h-screen bg-[#F9FAFB]">
+      {/* Sidebar */}
+      <aside className="w-[280px] bg-white border-r border-gray-200 flex flex-col">
+        {/* Brand */}
+        <div className="h-20 flex items-center px-6">
+          <div className="flex items-center space-x-2.5">
+            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-200">
+              <Command className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-[17px] font-bold tracking-tight text-gray-900">SmartAssess</span>
           </div>
         </div>
 
-        <div className="flex items-center space-x-6">
+        <div className="px-4 mb-4">
+          <p className="px-2 text-[10px] font-black text-gray-400 uppercase tracking-[0.15em] mb-2">Student Menu</p>
+          <nav className="space-y-0.5">
+            {navItems.map((item) => {
+              const isActive = item.filter 
+                ? currentFilter === item.filter 
+                : (pathname === item.href && !currentFilter);
+              
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={`flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-200 group ${
+                    isActive 
+                      ? "bg-gray-900 text-white shadow-sm" 
+                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                  }`}
+                >
+                  <div className="flex items-center">
+                    <item.icon className={`w-[18px] h-[18px] mr-3 transition-colors ${isActive ? "text-white" : "text-gray-400 group-hover:text-gray-900"}`} />
+                    <span className="text-[14px] font-semibold tracking-tight">{item.name}</span>
+                  </div>
+                  {isActive && <ChevronRight className="w-3.5 h-3.5 text-gray-400" />}
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+
+        {/* Bottom Actions */}
+        <div className="mt-auto p-4 border-t border-gray-100">
           <button 
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="flex items-center px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            className="w-full flex items-center px-3 py-2.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all font-semibold text-sm group"
           >
-            <LogOut className="w-4 h-4 mr-2" />
+            <LogOut className="w-[18px] h-[18px] mr-3 group-hover:text-red-600" />
             Sign Out
           </button>
         </div>
-      </header>
+      </aside>
 
-      {/* Main Content */}
-      <main className="flex-1">
-        {children}
-      </main>
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        <header className="h-20 bg-white border-b border-gray-100 flex items-center justify-between px-10 shrink-0">
+          <div className="flex items-center space-x-2">
+            <GraduationCap className="w-5 h-5 text-gray-400" />
+            <h2 className="text-[15px] font-bold text-gray-800">
+              {currentFilter 
+                ? currentFilter.charAt(0).toUpperCase() + currentFilter.slice(1) + " Exams" 
+                : pathname === "/student" ? "Dashboard" : "Settings"}
+            </h2>
+          </div>
+          <div className="flex items-center space-x-4">
+            <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-xl transition-colors relative">
+              <Bell className="w-5 h-5" />
+              <span className="absolute top-2 right-2 w-2 h-2 bg-blue-600 rounded-full border-2 border-white"></span>
+            </button>
+            <div className="h-6 w-[1px] bg-gray-100 mx-2"></div>
+            <div className="flex items-center space-x-3">
+              <div className="text-right">
+                <p className="text-[13px] font-bold text-gray-900 leading-none mb-0.5">{session.user.name}</p>
+                <p className="text-[11px] text-gray-400 font-medium tracking-tight">PRN: {session.user.prn || "N/A"}</p>
+              </div>
+              <div className="w-9 h-9 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400 font-bold">
+                {session.user.name?.[0]}
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 overflow-y-auto bg-[#F9FAFB] p-10">
+          <div className="max-w-6xl mx-auto">
+            {children}
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
+

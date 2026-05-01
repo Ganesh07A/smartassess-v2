@@ -4,7 +4,7 @@ import { useState } from "react";
 import { FileSpreadsheet, Printer } from "lucide-react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
-import "jspdf-autotable";
+import autoTable from "jspdf-autotable";
 
 interface ResultExporterProps {
   exam: {
@@ -63,8 +63,7 @@ export default function ResultExporter({ exam, results }: ResultExporterProps) {
   const exportToPDF = () => {
     setIsExporting(true);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const doc = new jsPDF() as any;
+      const doc = new jsPDF();
       const pageWidth = doc.internal.pageSize.getWidth();
 
       // Title & Header
@@ -82,7 +81,7 @@ export default function ResultExporter({ exam, results }: ResultExporterProps) {
 
       // Summary Table
       const tableData = results.map((res) => [
-        res.student.name,
+        res.student.name || "Unknown",
         res.student.prn || "N/A",
         res.status,
         `${res.correctAnswers}/${exam._count.questions}`,
@@ -90,8 +89,7 @@ export default function ResultExporter({ exam, results }: ResultExporterProps) {
         res.tabSwitches.toString()
       ]);
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (doc as any).autoTable({
+      autoTable(doc, {
         startY: 55,
         head: [['Student', 'PRN', 'Status', 'Correct', 'Score', 'Warnings']],
         body: tableData,
@@ -104,7 +102,6 @@ export default function ResultExporter({ exam, results }: ResultExporterProps) {
       });
 
       // Footer
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const finalY = (doc as any).lastAutoTable.finalY + 20;
       doc.setFontSize(10);
       doc.setTextColor(150);

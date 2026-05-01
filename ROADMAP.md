@@ -54,11 +54,30 @@ Here is the detailed roadmap based on the Feature-Driven (Vertical Slices) appro
    2. Exports: Implement xlsx and jspdf generation for student reports. (Done)
    3. Final Testing: Thorough end-to-end testing of the full flow. (Done)
 
+  Phase 6: Deployment & Infrastructure (Current Goal)
+   1. Production Prep: Optimize build settings and verify environment variables.
+   2. Database Migration: Move from local PostgreSQL to a cloud-based provider (e.g., Neon, Supabase).
+   3. Vercel Deployment: Deploy the Next.js frontend and serverless actions.
+   4. SSL & Domain Setup: Ensure secure HTTPS access.
+
+  Phase 7: AI & Advanced Security (Planned)
+   1. AI Question Generator: Upload PDFs/Notes to auto-generate MCQ banks.
+   2. AI Code Explainers: Automated AI feedback for students on their coding submissions.
+   3. Option Shuffling: Randomize the order of MCQ options for every student.
+   4. IP & Device Tracking: Monitor and alert if multiple students log in from the same IP/Device.
+   5. Clipboard Blocking: Disable copy-paste inside the secure exam environment.
+
+  Phase 8: Growth & Efficiency (Planned)
+   1. Automated Certificates: Professional PDF certificates with unique QR verification.
+   2. Weakness Analysis: Personalized topic-wise performance charts for students.
+   3. Exam Templates: One-click "Duplicate Exam" feature for teachers.
+   4. Email System: Automated notifications for exam scheduling and result releases.
+
   Conclusion
-  The SmartAssess platform is now feature-complete, providing a secure, AI-powered examination environment with real-time monitoring and professional reporting capabilities.
+  The SmartAssess platform is currently feature-complete for its initial release. The next steps involve production deployment followed by the "Intelligence" phases (AI and Advanced Security).
    - Each phase will be tested before moving to the next.
-   - Unit and integration tests will be written for critical paths (e.g., Auth, scoring logic).
-   - Manual QA of the anti-cheat mechanisms across different browsers.
+   - AI features will utilize external APIs (OpenAI/Gemini) with backend cost-controls.
+   - Manual QA of the anti-cheat mechanisms across different browsers remains a priority.
 
   Migration & Rollback
    - Database migrations will be handled iteratively via Prisma.
