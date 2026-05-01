@@ -24,3 +24,19 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Force high-contrast input visibility */
+input, textarea, select {
+  color: #111827 !important; /* Tailwind gray-900 */
+  font-weight: 500;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #9ca3af !important; /* Tailwind gray-400 */
+}
+
+@layer base {
+  input, textarea, select {
+    @apply text-gray-900 font-medium;
+  }
+}

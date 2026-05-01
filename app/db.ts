@@ -15,11 +15,16 @@ export const prisma =
         log: ["query"],
       });
     } else {
-      const pool = new pg.Pool({ connectionString });
+      const pool = new pg.Pool({ 
+        connectionString,
+        max: process.env.NODE_ENV === "production" ? 1 : 10, // Limit connections in production
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 2000,
+      });
       const adapter = new PrismaPg(pool);
       return new PrismaClient({
         adapter,
-        log: ["query"],
+        log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
       });
     }
   })();

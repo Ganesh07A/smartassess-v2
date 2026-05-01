@@ -45,17 +45,31 @@ export async function generateAIQuestions(prompt: string, count: number = 5) {
   try {
     const result = await model.generateContent([systemPrompt, prompt]);
     const response = await result.response;
+    
+    // Handle potential content blocking
+    if (response.candidates?.[0]?.finishReason === "SAFETY" || response.candidates?.[0]?.finishReason === "BLOCKLIST") {
+      throw new Error("Content was blocked by AI safety filters. Please try with different text.");
+    }
+
     const text = response.text();
     
-    // Clean the text in case Gemini adds markdown code blocks
-    const cleanedText = text.replace(/```json/g, "").replace(/```/g, "").trim();
+    // Better JSON extraction: find the first '[' and last ']'
+    const startIndex = text.indexOf("[");
+    const endIndex = text.lastIndexOf("]") + 1;
+    
+    if (startIndex === -1 || endIndex === 0) {
+      console.error("AI Response did not contain a valid JSON array:", text);
+      throw new Error("AI returned an invalid format. Please try again.");
+    }
+
+    const jsonString = text.substring(startIndex, endIndex);
     
     try {
-      const questions = JSON.parse(cleanedText);
+      const questions = JSON.parse(jsonString);
       return questions;
     } catch {
-      console.error("AI JSON Parse Error. Cleaned text was:", cleanedText);
-      throw new Error("The AI returned an invalid format. Please try re-generating.");
+      console.error("AI JSON Parse Error. Extracted string was:", jsonString);
+      throw new Error("The AI generated an invalid question set. Please try re-generating.");
     }
   } catch (error: unknown) {
     const err = error as Error;

@@ -10,6 +10,8 @@ interface Batch {
   };
 }
 
+export const dynamic = 'force-dynamic';
+
 export default async function BatchesPage() {
   const batches = await getTeacherBatches();
 

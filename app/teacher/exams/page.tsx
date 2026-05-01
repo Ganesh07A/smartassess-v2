@@ -4,6 +4,8 @@ import ExamCreator from "./exam-creator";
 import { BookOpen, Users, Clock, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
+export const dynamic = 'force-dynamic';
+
 export default async function ExamsPage() {
   const [exams, batches] = await Promise.all([
     getTeacherExams(),

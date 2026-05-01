@@ -10,6 +10,8 @@ import DeleteQuestionButton from "./delete-button";
 import EditQuestionModal from "./edit-modal";
 import AIGenerator from "./ai-generator";
 
+export const dynamic = 'force-dynamic';
+
 export default async function ExamDetailsPage({ 
   params 
 }: { 

@@ -8,6 +8,8 @@ import { ArrowLeft, CheckCircle, Clock, Table, BarChart3 } from "lucide-react";
 import ResultExporter from "./result-exporter";
 import AnalyticsDashboard from "./analytics-dashboard";
 
+export const dynamic = 'force-dynamic';
+
 export default async function ExamResultsPage({ 
   params,
   searchParams 

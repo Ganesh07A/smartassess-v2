@@ -6,7 +6,9 @@ import LiveDashboard from "./live-dashboard";
 import Link from "next/link";
 import { ArrowLeft, Radio } from "lucide-react";
 
-export default async function LiveMonitoringPage({ 
+export const dynamic = 'force-dynamic';
+
+export default async function LiveMonitorPage({ 
   params 
 }: { 
   params: Promise<{ id: string }> 

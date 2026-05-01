@@ -81,7 +81,7 @@ export async function uploadQuestions(examId: string, questions: QuestionInput[]
   }
 
   // Transaction to ensure all questions and mappings are created together
-  return await prisma.$transaction(async (tx) => {
+  await prisma.$transaction(async (tx) => {
     for (const q of questions) {
       const question = await tx.question.create({
         data: {
