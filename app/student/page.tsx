@@ -17,6 +17,8 @@ import {
   AlertCircle
 } from "lucide-react";
 
+export const dynamic = 'force-dynamic';
+
 export default async function StudentDashboard({
   searchParams
 }: {
