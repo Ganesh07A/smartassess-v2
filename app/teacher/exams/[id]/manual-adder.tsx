@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Plus, X, Loader2, BookOpen, Code2 } from "lucide-react";
 import { uploadQuestions } from "@/app/actions/exam";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 export default function ManualQuestionAdder({ examId }: { examId: string }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -52,7 +53,10 @@ export default function ManualQuestionAdder({ examId }: { examId: string }) {
         ? { ...mcqData, type: "MCQ" as const } 
         : { ...codingData, type: "CODING" as const };
 
+      const toastId = toast.loading("Adding question...");
       await uploadQuestions(examId, [question]);
+      toast.success("Question added successfully!", { id: toastId });
+      
       setIsModalOpen(false);
       router.refresh();
       // Reset forms
@@ -60,7 +64,7 @@ export default function ManualQuestionAdder({ examId }: { examId: string }) {
       setCodingData({ content: "", testCases: [{ input: "", output: "" }], points: 5 });
     } catch (err) {
       console.error("Failed to add question:", err);
-      alert("Failed to add question. Please check your data.");
+      toast.error("Failed to add question. Please check your data.");
     } finally {
       setLoading(false);
     }
@@ -118,7 +122,7 @@ export default function ManualQuestionAdder({ examId }: { examId: string }) {
                     ? setMcqData({ ...mcqData, content: e.target.value })
                     : setCodingData({ ...codingData, content: e.target.value })
                   }
-                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-black font-semibold"
+                  className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 font-bold placeholder:text-gray-400"
                 />
               </div>
 
@@ -136,7 +140,7 @@ export default function ManualQuestionAdder({ examId }: { examId: string }) {
                             ...mcqData,
                             options: { ...mcqData.options, [opt]: e.target.value }
                           })}
-                          className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-black font-semibold"
+                          className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 font-bold placeholder:text-gray-400"
                         />
                       </div>
                     ))}
@@ -147,7 +151,7 @@ export default function ManualQuestionAdder({ examId }: { examId: string }) {
                       <select
                         value={mcqData.correctAnswer}
                         onChange={(e) => setMcqData({ ...mcqData, correctAnswer: e.target.value })}
-                        className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-black font-semibold"
+                        className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 font-bold"
                       >
                         {["A", "B", "C", "D"].map(opt => <option key={opt} value={opt}>Option {opt}</option>)}
                       </select>
@@ -160,7 +164,7 @@ export default function ManualQuestionAdder({ examId }: { examId: string }) {
                         step="0.5"
                         value={mcqData.points}
                         onChange={(e) => setMcqData({ ...mcqData, points: parseFloat(e.target.value) })}
-                        className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-black font-bold"
+                        className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 font-black"
                       />
                     </div>
                   </div>
@@ -188,14 +192,14 @@ export default function ManualQuestionAdder({ examId }: { examId: string }) {
                             placeholder="Input"
                             value={tc.input}
                             onChange={(e) => handleTestCaseChange(index, "input", e.target.value)}
-                            className="w-full px-3 py-1.5 border rounded bg-white text-black font-semibold text-sm focus:ring-1 focus:ring-blue-500 outline-none"
+                            className="w-full px-3 py-1.5 border rounded bg-white text-gray-900 font-bold text-sm focus:ring-1 focus:ring-blue-500 outline-none placeholder:text-gray-400"
                           />
                           <input
                             type="text"
                             placeholder="Expected Output"
                             value={tc.output}
                             onChange={(e) => handleTestCaseChange(index, "output", e.target.value)}
-                            className="w-full px-3 py-1.5 border rounded bg-white text-black font-semibold text-sm focus:ring-1 focus:ring-blue-500 outline-none"
+                            className="w-full px-3 py-1.5 border rounded bg-white text-gray-900 font-bold text-sm focus:ring-1 focus:ring-blue-500 outline-none placeholder:text-gray-400"
                           />
                         </div>
                         {codingData.testCases.length > 1 && (
@@ -218,7 +222,7 @@ export default function ManualQuestionAdder({ examId }: { examId: string }) {
                       min="1"
                       value={codingData.points}
                       onChange={(e) => setCodingData({ ...codingData, points: parseFloat(e.target.value) })}
-                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-black font-bold"
+                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none bg-white text-gray-900 font-black"
                     />
                   </div>
                 </>

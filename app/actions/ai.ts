@@ -50,10 +50,22 @@ export async function generateAIQuestions(prompt: string, count: number = 5) {
     // Clean the text in case Gemini adds markdown code blocks
     const cleanedText = text.replace(/```json/g, "").replace(/```/g, "").trim();
     
-    const questions = JSON.parse(cleanedText);
-    return questions;
-  } catch (error) {
-    console.error("AI Generation Error:", error);
-    throw new Error("Failed to generate questions. Please try again with a clearer prompt.");
+    try {
+      const questions = JSON.parse(cleanedText);
+      return questions;
+    } catch {
+      console.error("AI JSON Parse Error. Cleaned text was:", cleanedText);
+      throw new Error("The AI returned an invalid format. Please try re-generating.");
+    }
+  } catch (error: unknown) {
+    const err = error as Error;
+    console.error("AI Generation Error Details:", err);
+    
+    // Provide more specific error messages for common issues
+    if (err?.message?.includes("API_KEY")) {
+      throw new Error("AI service is not configured (Missing API Key).");
+    }
+    
+    throw new Error(err.message || "Failed to generate questions. Please try again with a clearer prompt.");
   }
 }

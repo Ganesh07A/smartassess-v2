@@ -17,8 +17,18 @@ interface StudentResultExporterProps {
   score: number;
   totalPoints: number;
   percentage: number;
-  questions: any[];
-  submissions: any[];
+  questions: {
+    questionId: string;
+    question: {
+      content: string;
+      type: string;
+    }
+  }[];
+  submissions: {
+    questionId: string;
+    isCorrect: boolean | null;
+    pointsAwarded: number | null;
+  }[];
 }
 
 export default function StudentResultExporter({
@@ -78,12 +88,12 @@ export default function StudentResultExporter({
           (idx + 1).toString(),
           eq.question.content.substring(0, 50) + (eq.question.content.length > 50 ? "..." : ""),
           eq.question.type,
-          sub?.isCorrect ? "Correct" : (sub?.pointsAwarded > 0 ? "Partial" : "Incorrect"),
+          sub?.isCorrect ? "Correct" : (sub?.pointsAwarded && sub.pointsAwarded > 0 ? "Partial" : "Incorrect"),
           sub?.pointsAwarded?.toFixed(1) || "0.0"
         ];
       });
 
-      // @ts-ignore
+      // @ts-expect-error - lastAutoTable is added dynamically by jspdf-autotable
       const finalY = doc.lastAutoTable.finalY + 15;
       doc.text("Question-wise Breakdown", 20, finalY);
 

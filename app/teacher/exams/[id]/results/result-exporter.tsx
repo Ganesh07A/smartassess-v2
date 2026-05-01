@@ -102,7 +102,8 @@ export default function ResultExporter({ exam, results }: ResultExporterProps) {
       });
 
       // Footer
-      const finalY = (doc as any).lastAutoTable.finalY + 20;
+      // @ts-expect-error - lastAutoTable is added dynamically by jspdf-autotable
+      const finalY = doc.lastAutoTable.finalY + 20;
       doc.setFontSize(10);
       doc.setTextColor(150);
       doc.text(`Report Generated: ${new Date().toLocaleString()}`, 20, finalY);
@@ -118,11 +119,11 @@ export default function ResultExporter({ exam, results }: ResultExporterProps) {
   };
 
   return (
-    <div className="flex items-center space-x-3">
+    <div className="flex flex-col sm:flex-row gap-3">
       <button
         onClick={exportToExcel}
         disabled={isExporting}
-        className="flex items-center px-4 py-2 bg-white border-2 border-green-600 text-green-700 font-bold rounded-xl hover:bg-green-50 transition-all shadow-sm text-sm"
+        className="flex items-center px-4 py-2 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg shadow-green-100 transition-all text-sm"
       >
         <FileSpreadsheet className="w-4 h-4 mr-2" />
         Excel Export

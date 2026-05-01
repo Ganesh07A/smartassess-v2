@@ -41,7 +41,6 @@ export default async function StudentDashboard({
   }
   
   // Calculate student stats
-  const completedExams = exams.filter(e => e.sessions[0]?.status === "COMPLETED");
   const upcomingExams = exams.filter(e => new Date(e.startTime) > new Date());
   
   // Get detailed scores for the summary card
@@ -231,7 +230,7 @@ export default async function StudentDashboard({
                 <div key={session.id} className="flex items-start space-x-4">
                   <div className="w-2 h-2 mt-1.5 bg-green-500 rounded-full"></div>
                   <div>
-                    <p className="text-xs font-bold text-gray-900">Completed "{session.exam.title}"</p>
+                    <p className="text-xs font-bold text-gray-900">Completed &quot;{session.exam.title}&quot;</p>
                     <p className="text-[10px] text-gray-400 font-bold mt-0.5">{new Date(session.updatedAt).toLocaleDateString()}</p>
                   </div>
                 </div>
@@ -253,7 +252,7 @@ export default async function StudentDashboard({
             <div className="relative z-10">
               <Award className="w-10 h-10 text-blue-400 mb-4" />
               <h4 className="text-xl font-black mb-2">Platform Rank</h4>
-              <p className="text-gray-400 text-sm font-medium mb-6">You're in the top 15% of students this semester. Keep it up!</p>
+              <p className="text-gray-400 text-sm font-medium mb-6">You&apos;re in the top 15% of students this semester. Keep it up!</p>
               <button className="w-full py-3 bg-white text-black font-black text-xs uppercase tracking-widest rounded-xl hover:bg-gray-100 transition-colors">
                 View Leaderboard
               </button>
@@ -274,4 +273,3 @@ export default async function StudentDashboard({
     </div>
   );
 }
-
