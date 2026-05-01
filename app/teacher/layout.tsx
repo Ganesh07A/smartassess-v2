@@ -18,31 +18,21 @@ import {
 import { signOut, useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 
-export default function TeacherLayout({ children }: { children: ReactNode }) {
-  const { data: session, status } = useSession();
-  const pathname = usePathname();
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+const navItems = [
+  { name: "Overview", href: "/teacher", icon: LayoutDashboard },
+  { name: "Batches", href: "/teacher/batches", icon: Users },
+  { name: "Examinations", href: "/teacher/exams", icon: BookOpen },
+  { name: "Settings", href: "/teacher/settings", icon: Settings },
+];
 
-  if (status === "loading") {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center bg-[#fdfdfd]">
-        <div className="w-8 h-8 border-2 border-black/10 border-t-black rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
-  if (!session || session.user.role !== "TEACHER") {
-    redirect("/login");
-  }
-
-  const navItems = [
-    { name: "Overview", href: "/teacher", icon: LayoutDashboard },
-    { name: "Batches", href: "/teacher/batches", icon: Users },
-    { name: "Examinations", href: "/teacher/exams", icon: BookOpen },
-    { name: "Settings", href: "/teacher/settings", icon: Settings },
-  ];
-
-  const SidebarContent = () => (
+function SidebarContent({ 
+  pathname, 
+  setIsSidebarOpen 
+}: { 
+  pathname: string; 
+  setIsSidebarOpen: (open: boolean) => void 
+}) {
+  return (
     <>
       {/* Brand */}
       <div className="h-20 flex items-center px-6 shrink-0">
@@ -93,12 +83,30 @@ export default function TeacherLayout({ children }: { children: ReactNode }) {
       </div>
     </>
   );
+}
+
+export default function TeacherLayout({ children }: { children: ReactNode }) {
+  const { data: session, status } = useSession();
+  const pathname = usePathname();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  if (status === "loading") {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center bg-[#fdfdfd]">
+        <div className="w-8 h-8 border-2 border-black/10 border-t-black rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (!session || session.user.role !== "TEACHER") {
+    redirect("/login");
+  }
 
   return (
     <div className="flex h-screen bg-[#F9FAFB] overflow-hidden">
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex w-[280px] bg-white border-r border-gray-200 flex-col shrink-0">
-        <SidebarContent />
+        <SidebarContent pathname={pathname} setIsSidebarOpen={setIsSidebarOpen} />
       </aside>
 
       {/* Mobile Sidebar / Drawer */}
@@ -116,7 +124,7 @@ export default function TeacherLayout({ children }: { children: ReactNode }) {
               <X className="w-5 h-5" />
             </button>
           </div>
-          <SidebarContent />
+          <SidebarContent pathname={pathname} setIsSidebarOpen={setIsSidebarOpen} />
         </aside>
       </div>
 

@@ -18,33 +18,23 @@ import {
 import { signOut, useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 
-export default function StudentLayout({ children }: { children: ReactNode }) {
-  const { data: session, status } = useSession();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const currentFilter = searchParams.get("filter");
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+const navItems = [
+  { name: "My Dashboard", href: "/student", icon: LayoutDashboard, filter: null },
+  { name: "Active Exams", href: "/student?filter=active", icon: GraduationCap, filter: "active" },
+  { name: "Completed", href: "/student?filter=completed", icon: History, filter: "completed" },
+  { name: "Settings", href: "/student/settings", icon: Settings, filter: null },
+];
 
-  if (status === "loading") {
-    return (
-      <div className="h-screen flex flex-col items-center justify-center bg-[#fdfdfd]">
-        <div className="w-8 h-8 border-2 border-black/10 border-t-black rounded-full animate-spin"></div>
-      </div>
-    );
-  }
-
-  if (!session || session.user.role !== "STUDENT") {
-    redirect("/login");
-  }
-
-  const navItems = [
-    { name: "My Dashboard", href: "/student", icon: LayoutDashboard, filter: null },
-    { name: "Active Exams", href: "/student?filter=active", icon: GraduationCap, filter: "active" },
-    { name: "Completed", href: "/student?filter=completed", icon: History, filter: "completed" },
-    { name: "Settings", href: "/student/settings", icon: Settings, filter: null },
-  ];
-
-  const SidebarContent = () => (
+function SidebarContent({ 
+  pathname, 
+  currentFilter,
+  setIsSidebarOpen 
+}: { 
+  pathname: string; 
+  currentFilter: string | null;
+  setIsSidebarOpen: (open: boolean) => void 
+}) {
+  return (
     <>
       {/* Brand */}
       <div className="h-20 flex items-center px-6 shrink-0">
@@ -98,12 +88,32 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
       </div>
     </>
   );
+}
+
+export default function StudentLayout({ children }: { children: ReactNode }) {
+  const { data: session, status } = useSession();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentFilter = searchParams.get("filter");
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  if (status === "loading") {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center bg-[#fdfdfd]">
+        <div className="w-8 h-8 border-2 border-black/10 border-t-black rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (!session || session.user.role !== "STUDENT") {
+    redirect("/login");
+  }
 
   return (
     <div className="flex h-screen bg-[#F9FAFB] overflow-hidden">
       {/* Desktop Sidebar */}
       <aside className="hidden lg:flex w-[280px] bg-white border-r border-gray-200 flex-col shrink-0">
-        <SidebarContent />
+        <SidebarContent pathname={pathname} currentFilter={currentFilter} setIsSidebarOpen={setIsSidebarOpen} />
       </aside>
 
       {/* Mobile Sidebar / Drawer */}
@@ -121,7 +131,7 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
               <X className="w-5 h-5" />
             </button>
           </div>
-          <SidebarContent />
+          <SidebarContent pathname={pathname} currentFilter={currentFilter} setIsSidebarOpen={setIsSidebarOpen} />
         </aside>
       </div>
 
@@ -154,7 +164,7 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
                 <p className="text-[13px] font-bold text-gray-900 leading-none">{session.user.name}</p>
                 <p className="text-[11px] text-gray-400 font-medium mt-1">PRN: {session.user.prn || "N/A"}</p>
               </div>
-              <div className="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-400 font-bold text-sm">
+              <div className="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-500 text-sm">
                 {session.user.name?.[0]}
               </div>
             </div>
@@ -170,4 +180,3 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
     </div>
   );
 }
-
