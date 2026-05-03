@@ -5,12 +5,19 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
 
 export async function generateAIQuestions(prompt: string, count: number = 5) {
-  const session = await getServerSession(authOptions);
-  if (!session || session.user.role !== "TEACHER") {
-    throw new Error("Unauthorized");
-  }
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session || session.user.role !== "TEACHER") {
+      throw new Error("Unauthorized: Please log in as a teacher.");
+    }
 
-  return generateAIQuestionsInternal(prompt, count);
+    return await generateAIQuestionsInternal(prompt, count);
+  } catch (error: unknown) {
+    const err = error as Error;
+    console.error("Critical AI Action Error:", err);
+    // Throwing a clean error message that Next.js can serialize to the client
+    throw new Error(err.message || "An unexpected error occurred while generating questions.");
+  }
 }
 
 export async function generateAIQuestionsInternal(prompt: string, count: number = 5) {
@@ -21,7 +28,7 @@ export async function generateAIQuestionsInternal(prompt: string, count: number 
 
   const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({ 
-    model: "gemini-1.5-flash",
+    model: "gemini-1.5-flash-latest",
     generationConfig: {
       responseMimeType: "application/json",
     }
@@ -116,7 +123,7 @@ export async function explainCodeSubmission(
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
   const prompt = `
     You are an expert programming tutor. A student has submitted code for a coding problem.
