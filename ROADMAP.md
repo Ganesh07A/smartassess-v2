@@ -54,16 +54,16 @@ Here is the detailed roadmap based on the Feature-Driven (Vertical Slices) appro
    2. Exports: Implement xlsx and jspdf generation for student reports. (Done)
    3. Final Testing: Thorough end-to-end testing of the full flow. (Done)
 
-  Phase 6: Deployment & Infrastructure (Current Goal)
-   1. Production Prep: Optimize build settings and verify environment variables.
-   2. Database Migration: Move from local PostgreSQL to a cloud-based provider (e.g., Neon, Supabase).
-   3. Vercel Deployment: Deploy the Next.js frontend and serverless actions.
-   4. SSL & Domain Setup: Ensure secure HTTPS access.
+  Phase 6: Deployment & Infrastructure (Completed)
+   1. Production Prep: Optimize build settings and verify environment variables. (Done)
+   2. Database Migration: Move from local PostgreSQL to a cloud-based provider (e.g., Neon, Supabase). (Done)
+   3. Vercel Deployment: Deploy the Next.js frontend and serverless actions. (Done)
+   4. SSL & Domain Setup: Ensure secure HTTPS access. (Done)
 
-  Phase 7: AI & Advanced Security (Planned)
-   1. AI Question Generator: Upload PDFs/Notes to auto-generate MCQ banks.
+  Phase 7: AI & Advanced Security (Current Goal)
+   1. AI Question Generator: Upload PDFs/Notes to auto-generate MCQ banks. (Done)
    2. AI Code Explainers: Automated AI feedback for students on their coding submissions.
-   3. Option Shuffling: Randomize the order of MCQ options for every student.
+   3. Option Shuffling: Randomize the order of MCQ options for every student. (Done)
    4. IP & Device Tracking: Monitor and alert if multiple students log in from the same IP/Device.
    5. Clipboard Blocking: Disable copy-paste inside the secure exam environment.
 

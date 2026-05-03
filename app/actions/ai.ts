@@ -4,18 +4,22 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-
 export async function generateAIQuestions(prompt: string, count: number = 5) {
   const session = await getServerSession(authOptions);
   if (!session || session.user.role !== "TEACHER") {
     throw new Error("Unauthorized");
   }
 
-  if (!process.env.GEMINI_API_KEY) {
+  return generateAIQuestionsInternal(prompt, count);
+}
+
+export async function generateAIQuestionsInternal(prompt: string, count: number = 5) {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
     throw new Error("AI Configuration missing (GEMINI_API_KEY)");
   }
 
+  const genAI = new GoogleGenerativeAI(apiKey);
   const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
   const systemPrompt = `

@@ -36,6 +36,7 @@ interface Exam {
 interface ExamSession {
   id: string;
   startTime: Date | string | null;
+  optionsMapping?: Record<string, string[]> | null;
 }
 
 interface Submission {
@@ -320,7 +321,8 @@ export default function ExamClient({
                   </p>
                 </div>
                 <div className="grid grid-cols-1 gap-3">
-                  {Object.entries(currentQuestion.options || {}).map(([key, value]) => {
+                  {(session.optionsMapping?.[currentQuestion.id] || Object.keys(currentQuestion.options || {})).map((key) => {
+                    const value = currentQuestion.options?.[key];
                     const isSelected = submissions[currentQuestion.id]?.mcqAnswer === key;
                     return (
                       <button

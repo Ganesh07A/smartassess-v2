@@ -44,6 +44,10 @@ export default async function TakeExamPage({
   // Initialize or resume session
   const examSession = await startExamSession(id);
 
+  if (!examSession) {
+    throw new Error("Failed to initialize exam session");
+  }
+
   if (examSession.status === "COMPLETED") {
     redirect("/student");
   }
@@ -73,8 +77,9 @@ export default async function TakeExamPage({
     <ExamClient 
       exam={exam} 
       session={{
-        ...examSession,
-        startTime: examSession.startTime ?? new Date()
+        id: examSession.id,
+        startTime: examSession.startTime,
+        optionsMapping: examSession.optionsMapping as Record<string, string[]> | null
       }} 
       questions={sortedQuestions.map(q => ({
         id: q.id,
@@ -97,4 +102,3 @@ export default async function TakeExamPage({
     />
   );
 }
-

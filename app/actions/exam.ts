@@ -14,6 +14,7 @@ export async function createExam(data: {
   duration: number;
   batchId: string;
   allowRunCode?: boolean;
+  shuffleOptions?: boolean;
 }) {
   const session = await getServerSession(authOptions);
 
@@ -25,6 +26,7 @@ export async function createExam(data: {
     data: {
       ...data,
       allowRunCode: data.allowRunCode ?? true,
+      shuffleOptions: data.shuffleOptions ?? true,
     },
   });
 
@@ -284,7 +286,7 @@ export async function getStudentExams() {
 
 /**
  * Initializes or resumes an exam session for a student.
- * Shuffles questions on first start.
+ * Shuffles questions and optionally MCQ options on first start.
  */
 export async function startExamSession(examId: string) {
   const session = await getServerSession(authOptions);
@@ -295,14 +297,19 @@ export async function startExamSession(examId: string) {
 
   const studentId = session.user.id;
 
+  const sessionInclude = {
+    student: {
+      select: { name: true, prn: true }
+    },
+    exam: {
+      select: { shuffleOptions: true }
+    }
+  };
+
   // Check if session already exists
   let examSession = await prisma.studentExamSession.findUnique({
     where: { studentId_examId: { studentId, examId } },
-    include: {
-      student: {
-        select: { name: true, prn: true }
-      }
-    }
+    include: sessionInclude
   });
 
   if (examSession && examSession.status !== "NOT_STARTED") {
@@ -312,7 +319,7 @@ export async function startExamSession(examId: string) {
   // Get all questions for this exam
   const examQuestions = await prisma.examQuestion.findMany({
     where: { examId },
-    select: { questionId: true }
+    include: { question: true }
   });
 
   if (examQuestions.length === 0) {
@@ -324,36 +331,44 @@ export async function startExamSession(examId: string) {
     .map(q => q.questionId)
     .sort(() => Math.random() - 0.5);
 
+  // Optionally shuffle MCQ options
+  const optionsMapping: Record<string, string[]> = {};
+  const examObj = examSession?.exam || await prisma.exam.findUnique({ where: { id: examId }, select: { shuffleOptions: true } });
+  
+  if (examObj?.shuffleOptions) {
+    examQuestions.forEach(eq => {
+      if (eq.question.type === "MCQ" && eq.question.options) {
+        const keys = Object.keys(eq.question.options as Record<string, string>);
+        optionsMapping[eq.questionId] = keys.sort(() => Math.random() - 0.5);
+      }
+    });
+  }
+
+  const upsertData = {
+    status: "STARTED" as const,
+    startTime: new Date(),
+    questionsOrder: shuffledIds,
+    optionsMapping: optionsMapping || {},
+  };
+
   if (!examSession) {
     examSession = await prisma.studentExamSession.create({
       data: {
         studentId,
         examId,
-        status: "STARTED",
-        startTime: new Date(),
-        questionsOrder: shuffledIds,
+        ...upsertData,
       },
-      include: {
-        student: {
-          select: { name: true, prn: true }
-        }
-      }
+      include: sessionInclude
     });
   } else {
     examSession = await prisma.studentExamSession.update({
       where: { id: examSession.id },
-      data: {
-        status: "STARTED",
-        startTime: new Date(),
-        questionsOrder: shuffledIds,
-      },
-      include: {
-        student: {
-          select: { name: true, prn: true }
-        }
-      }
+      data: upsertData,
+      include: sessionInclude
     });
   }
+
+  if (!examSession) throw new Error("Failed to start exam session.");
 
   // Trigger Pusher event for the teacher's live dashboard
   await pusherServer.trigger(`exam-${examId}`, "student-joined", {
