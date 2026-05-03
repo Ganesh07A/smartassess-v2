@@ -1,7 +1,7 @@
 import { getExamResults, getExamAnalytics } from "@/app/actions/exam";
 import { prisma } from "@/app/db";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/app/lib/auth";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle, Clock, Table, BarChart3 } from "lucide-react";

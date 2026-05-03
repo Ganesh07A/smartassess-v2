@@ -2,7 +2,7 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/app/lib/auth";
 
 export async function generateAIQuestions(prompt: string, count: number = 5) {
   const session = await getServerSession(authOptions);
@@ -20,7 +20,12 @@ export async function generateAIQuestionsInternal(prompt: string, count: number 
   }
 
   const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const model = genAI.getGenerativeModel({ 
+    model: "gemini-1.5-flash",
+    generationConfig: {
+      responseMimeType: "application/json",
+    }
+  });
 
   const systemPrompt = `
     You are an expert examiner. Generate ${count} multiple-choice questions (MCQs) based on the provided text.
@@ -43,7 +48,6 @@ export async function generateAIQuestionsInternal(prompt: string, count: number 
     1. Ensure the questions are technically accurate and challenging.
     2. Provide 4 distinct options for each question.
     3. The correctAnswer must be one of "A", "B", "C", or "D".
-    4. Return ONLY the JSON array, no preamble or extra text.
   `;
 
   try {
@@ -57,23 +61,27 @@ export async function generateAIQuestionsInternal(prompt: string, count: number 
 
     const text = response.text();
     
-    // Better JSON extraction: find the first '[' and last ']'
-    const startIndex = text.indexOf("[");
-    const endIndex = text.lastIndexOf("]") + 1;
-    
-    if (startIndex === -1 || endIndex === 0) {
-      console.error("AI Response did not contain a valid JSON array:", text);
-      throw new Error("AI returned an invalid format. Please try again.");
-    }
-
-    const jsonString = text.substring(startIndex, endIndex);
-    
     try {
-      const questions = JSON.parse(jsonString);
+      // In JSON mode, Gemini should return pure JSON
+      const questions = JSON.parse(text);
       return questions;
     } catch {
-      console.error("AI JSON Parse Error. Extracted string was:", jsonString);
-      throw new Error("The AI generated an invalid question set. Please try re-generating.");
+      // Fallback: try extraction if JSON mode somehow failed or added text
+      const startIndex = text.indexOf("[");
+      const endIndex = text.lastIndexOf("]") + 1;
+      
+      if (startIndex !== -1 && endIndex > startIndex) {
+        const jsonString = text.substring(startIndex, endIndex);
+        try {
+          return JSON.parse(jsonString);
+        } catch (innerErr) {
+          console.error("AI JSON Parse Error. Response was:", text);
+          throw new Error("The AI generated an invalid question set. Please try again.");
+        }
+      }
+      
+      console.error("AI Response did not contain a valid JSON array:", text);
+      throw new Error("AI returned an invalid format. Please try again.");
     }
   } catch (error: unknown) {
     const err = error as Error;
@@ -85,5 +93,57 @@ export async function generateAIQuestionsInternal(prompt: string, count: number 
     }
     
     throw new Error(err.message || "Failed to generate questions. Please try again with a clearer prompt.");
+  }
+}
+
+/**
+ * Provides AI-powered feedback on a student's coding submission.
+ */
+export async function explainCodeSubmission(
+  questionContent: string, 
+  code: string, 
+  pointsAwarded: number, 
+  totalPoints: number
+) {
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    throw new Error("Unauthorized");
+  }
+
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) {
+    throw new Error("AI Configuration missing (GEMINI_API_KEY)");
+  }
+
+  const genAI = new GoogleGenerativeAI(apiKey);
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+  const prompt = `
+    You are an expert programming tutor. A student has submitted code for a coding problem.
+    Problem: ${questionContent}
+    Student's Submission:
+    \`\`\`
+    ${code}
+    \`\`\`
+    Score: ${pointsAwarded} / ${totalPoints}
+
+    Provide a concise, encouraging, and highly technical feedback.
+    Identify:
+    1. What they did well.
+    2. Where they might have failed or could improve (logic errors, edge cases, time complexity).
+    3. Specific advice to improve their code.
+    
+    If the score is full, praise their efficiency and suggest alternative approaches or more idiomatic code.
+    If the score is low, guide them towards the correct logic without just giving the full solution immediately.
+    Keep the tone professional and helpful. Use Markdown for formatting. Use about 150-200 words.
+  `;
+
+  try {
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    return response.text();
+  } catch (error) {
+    console.error("AI Explanation Error:", error);
+    throw new Error("Failed to generate AI feedback.");
   }
 }

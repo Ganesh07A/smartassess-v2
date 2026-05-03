@@ -60,12 +60,12 @@ Here is the detailed roadmap based on the Feature-Driven (Vertical Slices) appro
    3. Vercel Deployment: Deploy the Next.js frontend and serverless actions. (Done)
    4. SSL & Domain Setup: Ensure secure HTTPS access. (Done)
 
-  Phase 7: AI & Advanced Security (Current Goal)
+  Phase 7: AI & Advanced Security (Completed)
    1. AI Question Generator: Upload PDFs/Notes to auto-generate MCQ banks. (Done)
-   2. AI Code Explainers: Automated AI feedback for students on their coding submissions.
+   2. AI Code Explainers: Automated AI feedback for students on their coding submissions. (Done)
    3. Option Shuffling: Randomize the order of MCQ options for every student. (Done)
-   4. IP & Device Tracking: Monitor and alert if multiple students log in from the same IP/Device.
-   5. Clipboard Blocking: Disable copy-paste inside the secure exam environment.
+   4. IP & Device Tracking: Monitor and alert if multiple students log in from the same IP/Device. (Done)
+   5. Clipboard Blocking: Disable copy-paste inside the secure exam environment. (Done)
 
   Phase 8: Growth & Efficiency (Planned)
    1. Automated Certificates: Professional PDF certificates with unique QR verification.

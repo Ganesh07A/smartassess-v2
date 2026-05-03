@@ -2,9 +2,10 @@
 
 import { prisma } from "@/app/db";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/app/lib/auth";
 import { revalidatePath } from "next/cache";
 import { pusherServer } from "@/app/lib/pusher-server";
+import { headers } from "next/headers";
 
 export async function createExam(data: {
   title: string;
@@ -296,6 +297,9 @@ export async function startExamSession(examId: string) {
   }
 
   const studentId = session.user.id;
+  const headersList = await headers();
+  const ipAddress = headersList.get("x-forwarded-for") || "unknown";
+  const userAgent = headersList.get("user-agent") || "unknown";
 
   const sessionInclude = {
     student: {
@@ -349,6 +353,8 @@ export async function startExamSession(examId: string) {
     startTime: new Date(),
     questionsOrder: shuffledIds,
     optionsMapping: optionsMapping || {},
+    ipAddress,
+    userAgent,
   };
 
   if (!examSession) {
@@ -376,6 +382,7 @@ export async function startExamSession(examId: string) {
     studentName: examSession.student.name,
     prn: examSession.student.prn,
     startTime: examSession.startTime,
+    ipAddress,
   });
 
   return examSession;

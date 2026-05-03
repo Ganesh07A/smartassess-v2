@@ -1,6 +1,6 @@
 import { prisma } from "@/app/db";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/app/lib/auth";
 import { notFound, redirect } from "next/navigation";
 import LiveDashboard from "./live-dashboard";
 import Link from "next/link";
@@ -59,6 +59,7 @@ export default async function LiveMonitorPage({
     tabSwitches: s.tabSwitches,
     startTime: s.startTime || s.createdAt,
     updatedAt: s.updatedAt,
+    ipAddress: s.ipAddress || "unknown",
   }));
 
   return (

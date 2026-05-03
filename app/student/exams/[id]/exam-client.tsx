@@ -88,6 +88,7 @@ export default function ExamClient({
     compile_output?: string;
   } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showPalette, setShowPalette] = useState(false);
 
   const currentQuestion = questions[currentIdx];
 
@@ -177,7 +178,7 @@ export default function ExamClient({
     return () => clearInterval(timer);
   }, [exam.endTime, exam.duration, session.startTime, handleFinishExam]);
 
-  // Anti-Cheat: Visibility Change
+  // Anti-Cheat: Visibility Change & Clipboard Blocking
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (document.hidden) {
@@ -203,12 +204,30 @@ export default function ExamClient({
       }
     };
 
+    const preventClipboard = (e: ClipboardEvent) => {
+      e.preventDefault();
+      // Using a silent prevention to avoid annoying the student too much, 
+      // but the action will be blocked.
+    };
+
+    const preventContextMenu = (e: MouseEvent) => {
+      e.preventDefault();
+    };
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
     document.addEventListener("fullscreenchange", handleFullScreenChange);
+    document.addEventListener("copy", preventClipboard);
+    document.addEventListener("paste", preventClipboard);
+    document.addEventListener("cut", preventClipboard);
+    document.addEventListener("contextmenu", preventContextMenu);
     
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       document.removeEventListener("fullscreenchange", handleFullScreenChange);
+      document.removeEventListener("copy", preventClipboard);
+      document.removeEventListener("paste", preventClipboard);
+      document.removeEventListener("cut", preventClipboard);
+      document.removeEventListener("contextmenu", preventContextMenu);
     };
   }, [session.id]);
 
@@ -262,45 +281,59 @@ export default function ExamClient({
   return (
     <div className="h-screen flex flex-col bg-gray-50 select-none overflow-hidden">
       {/* Header - Fixed Height */}
-      <header className="h-20 bg-white border-b px-12 flex justify-between items-center shadow-sm flex-shrink-0">
-        <div className="flex items-center space-x-10">
-          <div className="flex items-center space-x-4">
-            <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center text-gray-400 border shadow-inner">
-              <UserIcon className="w-8 h-8" />
+      <header className="h-20 bg-white border-b px-4 md:px-12 flex justify-between items-center shadow-sm flex-shrink-0">
+        <div className="flex items-center space-x-4 md:space-x-10">
+          <div className="flex items-center space-x-2 md:space-x-4">
+            <div className="w-8 h-8 md:w-12 md:h-12 rounded-lg md:rounded-xl bg-gray-100 flex items-center justify-center text-gray-400 border shadow-inner">
+              <UserIcon className="w-5 h-5 md:w-8 md:h-8" />
             </div>
-            <div>
-              <div className="text-sm font-bold text-gray-800 leading-tight">{student.name}</div>
-              <div className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">PRN: {student.prn || "NOT ASSIGNED"}</div>
+            <div className="hidden sm:block">
+              <div className="text-[10px] md:text-sm font-bold text-gray-800 leading-tight">{student.name}</div>
+              <div className="text-[8px] md:text-[10px] text-gray-500 font-bold uppercase tracking-wider">PRN: {student.prn || "NOT ASSIGNED"}</div>
             </div>
           </div>
-          <div className="h-10 w-px bg-gray-200"></div>
+          <div className="h-8 md:h-10 w-px bg-gray-200"></div>
           <div>
-            <div className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-0.5">Examination</div>
-            <div className="text-base font-bold text-blue-600 leading-tight">{exam.title}</div>
+            <div className="text-[8px] md:text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-0.5">Examination</div>
+            <div className="text-xs md:text-base font-bold text-blue-600 leading-tight truncate max-w-[120px] md:max-w-none">{exam.title}</div>
           </div>
         </div>
 
-        <div className="flex items-center space-x-8">
-          <div className={`flex flex-col items-center px-6 py-1.5 rounded-xl border-2 ${timeLeft < 300 ? 'border-red-500 bg-red-50 text-red-600 animate-pulse' : 'border-blue-100 bg-blue-50 text-blue-600'}`}>
-            <div className="text-[8px] font-bold uppercase tracking-widest opacity-70">Time Remaining</div>
-            <div className="text-xl font-mono font-bold flex items-center">
-              <Clock className="w-4 h-4 mr-1.5" />
+        <div className="flex items-center space-x-2 md:space-x-8">
+          <div className={`flex flex-col items-center px-3 md:px-6 py-1 md:py-1.5 rounded-lg md:rounded-xl border-2 ${timeLeft < 300 ? 'border-red-500 bg-red-50 text-red-600 animate-pulse' : 'border-blue-100 bg-blue-50 text-blue-600'}`}>
+            <div className="text-[6px] md:text-[8px] font-bold uppercase tracking-widest opacity-70">Time</div>
+            <div className="text-sm md:text-xl font-mono font-bold flex items-center">
+              <Clock className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-1.5" />
               {formatTime(timeLeft)}
             </div>
           </div>
           <button 
             onClick={handleFinishExam}
-            className="px-6 py-2.5 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg shadow-green-100 transition-all flex items-center text-sm"
+            className="px-3 md:px-6 py-1.5 md:py-2.5 bg-green-600 text-white font-bold rounded-lg md:rounded-xl hover:bg-green-700 shadow-lg shadow-green-100 transition-all flex items-center text-[10px] md:text-sm"
           >
-            <Send className="w-4 h-4 mr-2" />
-            Finish Exam
+            <Send className="w-3 h-3 md:w-4 md:h-4 mr-1 md:mr-2" />
+            <span className="hidden sm:inline">Finish Exam</span>
+            <span className="sm:hidden">Finish</span>
           </button>
         </div>
       </header>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Mobile Palette Toggle */}
+        <button 
+          onClick={() => setShowPalette(!showPalette)}
+          className="lg:hidden absolute bottom-24 right-6 z-[60] w-12 h-12 bg-white border-2 border-blue-600 text-blue-600 rounded-full shadow-2xl flex items-center justify-center"
+        >
+          <div className="grid grid-cols-2 gap-0.5">
+            <div className="w-1.5 h-1.5 bg-current rounded-sm"></div>
+            <div className="w-1.5 h-1.5 bg-current rounded-sm"></div>
+            <div className="w-1.5 h-1.5 bg-current rounded-sm"></div>
+            <div className="w-1.5 h-1.5 bg-current rounded-sm"></div>
+          </div>
+        </button>
+
         {/* Main Panel */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden p-6">
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden p-4 md:p-6">
           {/* Question Header */}
           <div className="mb-4 flex items-center justify-between flex-shrink-0">
             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
@@ -456,59 +489,71 @@ export default function ExamClient({
           </div>
 
           {/* Footer Controls - Fixed Height */}
-          <div className="mt-6 flex justify-between items-center flex-shrink-0">
+          <div className="mt-4 md:mt-6 flex justify-between items-center flex-shrink-0">
             <button
               disabled={currentIdx === 0}
               onClick={() => handleIdxChange(currentIdx - 1)}
-              className="flex items-center px-6 py-2.5 bg-white border-2 border-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-50 transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-sm text-sm"
+              className="flex items-center px-4 md:px-6 py-2 md:py-2.5 bg-white border-2 border-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-50 transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-sm text-xs md:text-sm"
             >
-              <ChevronLeft className="w-4 h-4 mr-2" />
-              Previous
+              <ChevronLeft className="w-4 h-4 mr-1 md:mr-2" />
+              <span className="hidden sm:inline">Previous</span>
             </button>
             
-            <div className="flex space-x-3">
+            <div className="flex space-x-2 md:space-x-3">
               <button
                 onClick={() => handleSaveAnswer(currentQuestion.id, { mcqAnswer: undefined, codeAnswer: undefined })}
-                className="px-6 py-2.5 text-gray-400 hover:text-red-500 font-bold transition-colors text-sm"
+                className="px-2 md:px-6 py-2 md:py-2.5 text-gray-400 hover:text-red-500 font-bold transition-colors text-[10px] md:text-sm"
               >
-                Clear Selection
+                Clear
               </button>
               {currentIdx < questions.length - 1 ? (
                 <button
                   onClick={() => handleIdxChange(currentIdx + 1)}
-                  className="flex items-center px-8 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all text-sm"
+                  className="flex items-center px-6 md:px-8 py-2 md:py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all text-xs md:text-sm"
                 >
-                  Next Question
-                  <ChevronRight className="w-4 h-4 ml-2" />
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-1 md:ml-2" />
                 </button>
               ) : (
                 <button
                   onClick={handleFinishExam}
-                  className="flex items-center px-8 py-2.5 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg shadow-green-100 transition-all text-sm"
+                  className="flex items-center px-6 md:px-8 py-2 md:py-2.5 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 shadow-lg shadow-green-100 transition-all text-xs md:text-sm"
                 >
-                  Finish Exam
-                  <CheckCircle className="w-4 h-4 ml-2" />
+                  Finish
+                  <CheckCircle className="w-4 h-4 ml-1 md:ml-2" />
                 </button>
               )}
             </div>
           </div>
         </div>
 
-        {/* Navigation Sidebar - Fixed Width */}
-        <aside className="w-80 bg-white border-l flex flex-col shadow-inner flex-shrink-0 overflow-hidden">
-          <div className="p-6 border-b flex-shrink-0">
-            <h3 className="text-xs font-black uppercase tracking-wider text-gray-400 mb-6 flex items-center justify-between">
+        {/* Navigation Sidebar */}
+        <aside className={`
+          fixed inset-0 z-[70] bg-white transition-transform duration-300 lg:static lg:z-0 lg:translate-x-0 lg:w-80 lg:bg-white lg:border-l lg:flex lg:flex-col lg:shadow-inner lg:flex-shrink-0 lg:overflow-hidden
+          ${showPalette ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}
+        `}>
+          <div className="p-6 border-b flex-shrink-0 flex items-center justify-between lg:block">
+            <h3 className="text-xs font-black uppercase tracking-wider text-gray-400 lg:mb-6 flex items-center justify-between flex-1 lg:flex-none">
               Question Palette
               <span className="text-[9px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-full">{questions.length} Total</span>
             </h3>
-            <div className="grid grid-cols-4 gap-2.5 max-h-[400px] overflow-y-auto scrollbar-hide pr-1">
+            <button onClick={() => setShowPalette(false)} className="lg:hidden p-2 text-gray-400 hover:text-gray-600">
+              <ChevronRight className="w-6 h-6" />
+            </button>
+          </div>
+          
+          <div className="p-6 border-b flex-shrink-0 overflow-y-auto">
+            <div className="grid grid-cols-5 lg:grid-cols-4 gap-2.5 max-h-[400px] lg:max-h-none pr-1">
               {questions.map((q, i) => {
                 const isAnswered = submissions[q.id]?.mcqAnswer || submissions[q.id]?.codeAnswer;
                 const isCurrent = currentIdx === i;
                 return (
                   <button
                     key={q.id}
-                    onClick={() => handleIdxChange(i)}
+                    onClick={() => {
+                      handleIdxChange(i);
+                      setShowPalette(false);
+                    }}
                     className={`w-11 h-11 rounded-xl text-xs font-bold transition-all border-2 flex items-center justify-center ${
                       isCurrent 
                         ? "border-blue-600 bg-blue-600 text-white shadow-md shadow-blue-100" 

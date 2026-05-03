@@ -125,6 +125,8 @@ model StudentExamSession {
   currentTimer   Int?
   tabSwitches    Int           @default(0)
   isBlurred      Boolean       @default(false)
+  ipAddress      String?
+  userAgent      String?
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   exam           Exam          @relation(fields: [examId], references: [id], onDelete: Cascade)

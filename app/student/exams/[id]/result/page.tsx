@@ -1,10 +1,11 @@
 import { prisma } from "@/app/db";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { authOptions } from "@/app/lib/auth";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle, XCircle, Award, ArrowLeft, BookOpen, AlertCircle, HelpCircle } from "lucide-react";
 import StudentResultExporter from "./student-result-exporter";
+import AIExplainer from "./ai-explainer";
 
 export default async function ExamResultPage({ 
   params 
@@ -168,6 +169,15 @@ export default async function ExamResultPage({
                               <AlertCircle className="w-4 h-4 mr-2 text-blue-500" />
                               <span className="text-gray-600">Points Awarded: {submission?.pointsAwarded?.toFixed(1) || "0.0"} / {eq.points}</span>
                             </div>
+
+                            {submission?.codeAnswer && (
+                              <AIExplainer 
+                                questionContent={q.content}
+                                code={submission.codeAnswer}
+                                pointsAwarded={submission.pointsAwarded || 0}
+                                totalPoints={eq.points}
+                              />
+                            )}
                           </div>
                         )}
                       </div>

@@ -20,6 +20,7 @@ interface StudentSession {
   tabSwitches: number;
   startTime: string | Date;
   updatedAt: string | Date;
+  ipAddress?: string;
 }
 
 interface LiveDashboardProps {
@@ -56,21 +57,36 @@ export default function LiveDashboard({
 
     const channel = pusherClient.subscribe(`exam-${examId}`);
 
-    channel.bind("student-joined", (data: { studentId: string; studentName: string; prn: string; startTime: string }) => {
-      setSessions(prev => ({
-        ...prev,
-        [data.studentId]: {
-          ...prev[data.studentId],
-          studentId: data.studentId,
-          studentName: data.studentName,
-          prn: data.prn,
-          status: "STARTED",
-          startTime: data.startTime,
-          updatedAt: new Date().toISOString(),
-          answeredCount: prev[data.studentId]?.answeredCount || 0,
-          tabSwitches: prev[data.studentId]?.tabSwitches || 0,
+    channel.bind("student-joined", (data: { studentId: string; studentName: string; prn: string; startTime: string; ipAddress?: string }) => {
+      setSessions(prev => {
+        const newSessions = {
+          ...prev,
+          [data.studentId]: {
+            ...prev[data.studentId],
+            studentId: data.studentId,
+            studentName: data.studentName,
+            prn: data.prn,
+            status: "STARTED",
+            startTime: data.startTime,
+            updatedAt: new Date().toISOString(),
+            answeredCount: prev[data.studentId]?.answeredCount || 0,
+            tabSwitches: prev[data.studentId]?.tabSwitches || 0,
+            ipAddress: data.ipAddress,
+          }
+        };
+
+        // Check for duplicate IP
+        if (data.ipAddress && data.ipAddress !== 'unknown') {
+          const duplicateStudents = Object.values(newSessions).filter(
+            s => s.ipAddress === data.ipAddress && s.studentId !== data.studentId && s.status === 'STARTED'
+          );
+          if (duplicateStudents.length > 0) {
+            addAlert(`Multiple students detected on IP: ${data.ipAddress}!`, 'warning');
+          }
         }
-      }));
+
+        return newSessions;
+      });
       addAlert(`${data.studentName} joined the exam`, 'info');
     });
 
@@ -158,7 +174,7 @@ export default function LiveDashboard({
       </div>
 
       {/* Live Alerts Overlay */}
-      <div className="fixed bottom-8 right-8 z-50 flex flex-col space-y-2">
+      <div className="fixed bottom-4 right-4 md:bottom-8 md:right-8 z-50 flex flex-col space-y-2">
         {alerts.map(alert => (
           <div 
             key={alert.id}
@@ -188,6 +204,7 @@ export default function LiveDashboard({
             <thead>
               <tr className="bg-white border-b">
                 <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase">Student</th>
+                <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase">IP Address</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase">Status</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase">Progress</th>
                 <th className="px-6 py-4 text-xs font-bold text-gray-400 uppercase">Anti-Cheat</th>
@@ -197,60 +214,71 @@ export default function LiveDashboard({
             <tbody className="divide-y">
               {sessionList.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-400">
+                  <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
                     Waiting for students to join...
                   </td>
                 </tr>
               ) : (
-                sessionList.map((s) => (
-                  <tr key={s.studentId} className="hover:bg-gray-50/50 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center">
-                        <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 mr-3 border">
-                          <UserIcon className="w-6 h-6" />
+                sessionList.map((s) => {
+                  const isDuplicateIP = s.ipAddress && s.ipAddress !== 'unknown' && 
+                    sessionList.filter(other => other.ipAddress === s.ipAddress && other.status === 'STARTED').length > 1;
+
+                  return (
+                    <tr key={s.studentId} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center">
+                          <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 mr-3 border">
+                            <UserIcon className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <div className="font-bold text-gray-800">{s.studentName}</div>
+                            <div className="text-xs text-gray-500 font-bold uppercase tracking-wider">{s.prn}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div className="font-bold text-gray-800">{s.studentName}</div>
-                          <div className="text-xs text-gray-500 font-bold uppercase tracking-wider">{s.prn}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className={`text-xs font-mono font-bold ${isDuplicateIP ? 'text-red-600 bg-red-50 px-2 py-1 rounded-lg border border-red-100 flex items-center w-fit' : 'text-gray-500'}`}>
+                          {isDuplicateIP && <AlertTriangle className="w-3 h-3 mr-1.5" />}
+                          {s.ipAddress || "unknown"}
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
-                        s.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : 
-                        s.status === 'STARTED' ? 'bg-blue-100 text-blue-700 animate-pulse' : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {s.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="w-full max-w-[100px]">
-                        <div className="flex justify-between text-[10px] font-bold text-gray-400 mb-1">
-                          <span>{Math.round((s.answeredCount / totalQuestions) * 100)}%</span>
-                          <span>{s.answeredCount}/{totalQuestions}</span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
+                          s.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : 
+                          s.status === 'STARTED' ? 'bg-blue-100 text-blue-700 animate-pulse' : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {s.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="w-full max-w-[100px]">
+                          <div className="flex justify-between text-[10px] font-bold text-gray-400 mb-1">
+                            <span>{totalQuestions > 0 ? Math.round((s.answeredCount / totalQuestions) * 100) : 0}%</span>
+                            <span>{s.answeredCount}/{totalQuestions}</span>
+                          </div>
+                          <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+                            <div 
+                              className="h-full bg-blue-600 transition-all duration-500"
+                              style={{ width: `${totalQuestions > 0 ? (s.answeredCount / totalQuestions) * 100 : 0}%` }}
+                            />
+                          </div>
                         </div>
-                        <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full bg-blue-600 transition-all duration-500"
-                            style={{ width: `${(s.answeredCount / totalQuestions) * 100}%` }}
-                          />
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className={`flex items-center font-bold ${s.tabSwitches > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          <AlertTriangle className={`w-4 h-4 mr-2 ${s.tabSwitches > 0 ? 'animate-bounce' : 'opacity-20'}`} />
+                          {s.tabSwitches} Switches
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className={`flex items-center font-bold ${s.tabSwitches > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                        <AlertTriangle className={`w-4 h-4 mr-2 ${s.tabSwitches > 0 ? 'animate-bounce' : 'opacity-20'}`} />
-                        {s.tabSwitches} Switches
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 font-medium">
-                      <div className="flex items-center">
-                        <Clock className="w-3.5 h-3.5 mr-1.5 opacity-50" />
-                        {new Date(s.updatedAt).toLocaleTimeString()}
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500 font-medium">
+                        <div className="flex items-center">
+                          <Clock className="w-3.5 h-3.5 mr-1.5 opacity-50" />
+                          {new Date(s.updatedAt).toLocaleTimeString()}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
