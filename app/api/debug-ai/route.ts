@@ -17,7 +17,7 @@ export async function GET() {
   }
 
   const modelName = "inclusionai/ring-2.6-1t:free";
-  const result: any = {};
+  const result: Record<string, { status: string; message?: string; details?: unknown; text?: string }> = {};
 
   try {
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -46,10 +46,11 @@ export async function GET() {
         text: data.choices[0].message.content.substring(0, 50) + "..." 
       };
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const error = err as Error;
     result[modelName] = { 
       status: "error", 
-      message: err.message
+      message: error.message
     };
   }
 

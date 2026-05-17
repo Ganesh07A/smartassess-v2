@@ -35,8 +35,9 @@ async function checkModels() {
       const error = await response.json().catch(() => ({}));
       console.log(`❌ [FAILED]  Model "${modelName}": ${error.error?.message || "HTTP " + response.status}`);
     }
-  } catch (err: any) {
-    console.log(`❌ [ERROR]   ${err.message}`);
+  } catch (err: unknown) {
+    const error = err as Error;
+    console.log(`❌ [ERROR]   ${error.message}`);
   }
 }
 
