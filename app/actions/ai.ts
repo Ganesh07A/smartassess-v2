@@ -14,12 +14,12 @@ async function callOpenRouter(messages: { role: string; content: string }[], jso
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
-      "HTTP-Referer": "https://smartassess.vercel.app", 
+      "HTTP-Referer": "http://localhost:3000",
       "X-Title": "SmartAssess",
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "inclusionai/ring-2.6-1t:free",
+      model: "openrouter/auto",
       messages: messages,
       // Note: Not all free models support strict JSON mode, so we rely on prompting + parsing
       response_format: jsonMode ? { type: "json_object" } : undefined,
@@ -53,9 +53,12 @@ export async function generateAIQuestions(prompt: string, count: number = 5) {
 
 export async function generateAIQuestionsInternal(prompt: string, count: number = 5) {
   const systemPrompt = `
-    You are an expert examiner. Generate ${count} multiple-choice questions (MCQs) based on the provided text.
-    Return the result strictly as a valid JSON array of objects.
-    Each object must follow this structure:
+    You are an expert examiner. Your task is to generate EXACTLY ${count} multiple-choice questions (MCQs) based on the provided text.
+    
+    CRITICAL RULES:
+    1. You MUST generate exactly ${count} questions. No more, no less.
+    2. Return the result ONLY as a valid JSON array of objects.
+    3. Each object must follow this structure:
     {
       "type": "MCQ",
       "content": "The question text",
@@ -69,11 +72,10 @@ export async function generateAIQuestionsInternal(prompt: string, count: number 
       "points": 1
     }
     
-    Rules:
-    1. Ensure the questions are technically accurate and challenging.
-    2. Provide 4 distinct options for each question.
-    3. The correctAnswer must be one of "A", "B", "C", or "D".
-    4. Return ONLY the JSON array. No conversational text.
+    4. Ensure the questions are technically accurate and challenging.
+    5. Provide 4 distinct options for each question.
+    6. The correctAnswer must be one of "A", "B", "C", or "D".
+    7. Return ONLY the raw JSON array. Do not include markdown code blocks, explanations, or any other text.
   `;
 
   try {
@@ -84,7 +86,13 @@ export async function generateAIQuestionsInternal(prompt: string, count: number 
     
     try {
       // Try parsing directly
-      return JSON.parse(text);
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) return parsed;
+      if (typeof parsed === 'object' && parsed !== null) {
+        // If it's a single object, wrap it in an array
+        return [parsed];
+      }
+      throw new Error("AI did not return a valid list of questions.");
     } catch {
       // Fallback: try extraction if the model added markdown or extra text
       const startIndex = text.indexOf("[");
@@ -93,8 +101,9 @@ export async function generateAIQuestionsInternal(prompt: string, count: number 
       if (startIndex !== -1 && endIndex > startIndex) {
         const jsonString = text.substring(startIndex, endIndex);
         try {
-          return JSON.parse(jsonString);
-        } catch (innerErr) {
+          const parsed = JSON.parse(jsonString);
+          return Array.isArray(parsed) ? parsed : [parsed];
+        } catch {
           console.error("AI JSON Parse Error. Response was:", text);
           throw new Error("The AI generated an invalid question set. Please try again.");
         }

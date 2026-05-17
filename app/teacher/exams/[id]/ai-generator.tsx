@@ -144,7 +144,7 @@ export default function AIGenerator({ examId }: { examId: string }) {
                   </div>
 
                   <div className="space-y-4">
-                    {generatedQuestions.map((q, idx) => (
+                    {Array.isArray(generatedQuestions) && generatedQuestions.map((q, idx) => (
                       <div key={idx} className="p-4 md:p-6 rounded-2xl border-2 border-gray-50 bg-white">
                         <div className="flex justify-between items-start mb-4">
                           <span className="px-3 py-1 bg-gray-900 text-white text-[10px] font-black uppercase tracking-widest rounded-lg">
