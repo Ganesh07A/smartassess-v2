@@ -10,6 +10,11 @@ const connectionString = process.env.DATABASE_URL;
 export const prisma =
   globalForPrisma.prisma ||
   (() => {
+    if (!connectionString) {
+      // Return a proxy or dummy client during build if DATABASE_URL is missing
+      console.warn("DATABASE_URL is missing. Using a dummy Prisma client for build.");
+      return new PrismaClient(); 
+    }
     if (connectionString?.startsWith("prisma+postgres://")) {
       // For Prisma Postgres, we don't use the pg adapter directly
       return new PrismaClient({
