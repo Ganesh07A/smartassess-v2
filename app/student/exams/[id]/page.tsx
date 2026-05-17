@@ -58,8 +58,10 @@ export default async function TakeExamPage({
     where: { id: { in: questionsOrder } },
   });
 
-  // Sort questions to match the saved order
-  const sortedQuestions = questionsOrder.map(qId => questions.find(q => q.id === qId)!);
+  // Sort questions to match the saved order, filtering out any that might have been deleted
+  const sortedQuestions = questionsOrder
+    .map(qId => questions.find(q => q.id === qId))
+    .filter((q): q is typeof questions[0] => q !== undefined);
 
   // Fetch existing submissions/answers for this session
   const existingSubmissions = await prisma.submission.findMany({

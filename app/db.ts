@@ -24,9 +24,9 @@ export const prisma =
     } else {
       const pool = new pg.Pool({ 
         connectionString,
-        max: process.env.NODE_ENV === "production" ? 1 : 10, // Limit connections in production
+        max: process.env.NODE_ENV === "production" ? 10 : 10, // Increased from 1 to 10 for better concurrency
         idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 2000,
+        connectionTimeoutMillis: 10000, // Increased from 2000 to 10000 to prevent cold-start timeouts
       });
       const adapter = new PrismaPg(pool);
       return new PrismaClient({

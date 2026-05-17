@@ -6,6 +6,8 @@ import Link from "next/link";
 import { CheckCircle, XCircle, Award, ArrowLeft, BookOpen, AlertCircle, HelpCircle } from "lucide-react";
 import StudentResultExporter from "./student-result-exporter";
 import AIExplainer from "./ai-explainer";
+import CertificateDownloader from "./certificate-downloader";
+import { getCertificate } from "@/app/actions/certificate";
 
 export default async function ExamResultPage({ 
   params 
@@ -35,20 +37,23 @@ export default async function ExamResultPage({
     notFound();
   }
 
-  const examSession = await prisma.studentExamSession.findUnique({
-    where: { 
-      studentId_examId: { 
-        studentId: session.user.id, 
-        examId: id 
-      } 
-    },
-    include: {
-      student: {
-        select: { name: true, prn: true }
+  const [examSession, certificate] = await Promise.all([
+    prisma.studentExamSession.findUnique({
+      where: { 
+        studentId_examId: { 
+          studentId: session.user.id, 
+          examId: id 
+        } 
       },
-      submissions: true
-    }
-  });
+      include: {
+        student: {
+          select: { name: true, prn: true }
+        },
+        submissions: true
+      }
+    }),
+    getCertificate(id, session.user.id)
+  ]);
 
   if (!examSession || examSession.status !== "COMPLETED") {
     redirect(`/student/exams/${id}`);
@@ -70,15 +75,24 @@ export default async function ExamResultPage({
             Back to Dashboard
           </Link>
           
-          <StudentResultExporter 
-            student={examSession.student}
-            exam={exam}
-            score={earnedPoints}
-            totalPoints={totalPoints}
-            percentage={percentage}
-            questions={exam.questions}
-            submissions={examSession.submissions}
-          />
+          <div className="flex items-center space-x-4">
+            {certificate && (
+              <CertificateDownloader 
+                certificate={certificate}
+                student={examSession.student}
+                exam={exam}
+              />
+            )}
+            <StudentResultExporter 
+              student={examSession.student}
+              exam={exam}
+              score={earnedPoints}
+              totalPoints={totalPoints}
+              percentage={percentage}
+              questions={exam.questions}
+              submissions={examSession.submissions}
+            />
+          </div>
         </div>
 
         <div className="bg-white rounded-3xl shadow-sm border overflow-hidden mb-8">

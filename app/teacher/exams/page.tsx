@@ -1,6 +1,7 @@
 import { getTeacherExams } from "@/app/actions/exam";
 import { getTeacherBatches } from "@/app/actions/batch";
 import ExamCreator from "./exam-creator";
+import DuplicateButton from "./duplicate-button";
 import { BookOpen, Users, Clock, ArrowRight } from "lucide-react";
 import Link from "next/link";
 
@@ -60,6 +61,7 @@ export default async function ExamsPage() {
               </div>
 
               <div className="mt-4 md:mt-0 flex items-center space-x-3">
+                <DuplicateButton examId={exam.id} />
                 <Link 
                   href={`/teacher/exams/${exam.id}`}
                   className="flex items-center px-4 py-2 text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
