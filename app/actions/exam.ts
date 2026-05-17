@@ -560,6 +560,16 @@ export async function submitExam(sessionId: string) {
   revalidatePath("/student");
   revalidatePath(`/student/exams/${examSession.examId}`);
   revalidatePath("/teacher/exams/[id]/results", "page");
+
+  // Automatically attempt to issue certificate if they passed
+  try {
+    const { issueCertificate } = await import("./certificate");
+    await issueCertificate(examSession.examId, session.user.id);
+  } catch (err) {
+    // Silently fail if they didn't pass or other issues, 
+    // as certificates can be generated later manually too.
+    console.log("Auto-certificate issuance skipped or failed:", (err as Error).message);
+  }
 }
 
 /**
@@ -675,4 +685,54 @@ export async function logTabSwitch(sessionId: string) {
   });
 
   return updatedSession;
+}
+
+/**
+ * Duplicates an existing exam along with all its questions.
+ */
+export async function duplicateExam(examId: string, targetBatchId?: string) {
+  const session = await getServerSession(authOptions);
+
+  if (!session || session.user.role !== "TEACHER") {
+    throw new Error("Unauthorized");
+  }
+
+  // Fetch the source exam and its questions
+  const sourceExam = await prisma.exam.findUnique({
+    where: { 
+      id: examId,
+      batch: { teacherId: session.user.id }
+    },
+    include: {
+      questions: true
+    }
+  });
+
+  if (!sourceExam) {
+    throw new Error("Source exam not found or unauthorized.");
+  }
+
+  // Create the new duplicated exam
+  const newExam = await prisma.exam.create({
+    data: {
+      title: `${sourceExam.title} (Copy)`,
+      description: sourceExam.description,
+      startTime: sourceExam.startTime,
+      endTime: sourceExam.endTime,
+      duration: sourceExam.duration,
+      batchId: targetBatchId || sourceExam.batchId,
+      allowRunCode: sourceExam.allowRunCode,
+      shuffleOptions: sourceExam.shuffleOptions,
+      questions: {
+        create: sourceExam.questions.map(q => ({
+          questionId: q.questionId,
+          points: q.points,
+          order: q.order
+        }))
+      }
+    }
+  });
+
+  revalidatePath("/teacher/exams");
+  return newExam;
 }

@@ -24,6 +24,7 @@ model User {
   sessions        Session[]
   examSessions    StudentExamSession[]
   enrolledBatches Batch[]              @relation("StudentBatches")
+  certificates    Certificate[]
 }
 
 model Account {
@@ -86,6 +87,7 @@ model Exam {
   batch        Batch                @relation(fields: [batchId], references: [id], onDelete: Cascade)
   questions    ExamQuestion[]
   sessions     StudentExamSession[]
+  certificates Certificate[]
 }
 
 model Question {
@@ -167,4 +169,22 @@ enum SessionStatus {
   PAUSED
   COMPLETED
   FORCE_SUBMITTED
+}
+
+model Certificate {
+  id               String   @id @default(uuid())
+  certificateId    String   @unique // Example: SA-2026-0001
+  studentId        String
+  examId           String
+  issueDate        DateTime @default(now())
+  certificateUrl   String?
+  verificationCode String?  @unique
+  grade            String?
+  score            Float?
+  student          User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  exam             Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([studentId, examId])
 }

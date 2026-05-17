@@ -67,11 +67,11 @@ Here is the detailed roadmap based on the Feature-Driven (Vertical Slices) appro
    4. IP & Device Tracking: Monitor and alert if multiple students log in from the same IP/Device. (Done)
    5. Clipboard Blocking: Disable copy-paste inside the secure exam environment. (Done)
 
-  Phase 8: Growth & Efficiency (Planned)
-   1. Automated Certificates: Professional PDF certificates with unique QR verification.
-   2. Weakness Analysis: Personalized topic-wise performance charts for students.
-   3. Exam Templates: One-click "Duplicate Exam" feature for teachers.
-   4. Email System: Automated notifications for exam scheduling and result releases.
+  Phase 8: Growth & Efficiency (In Progress)
+   1. Automated Certificates: Professional PDF certificates with unique QR verification. (Completed)
+   2. Weakness Analysis: Personalized topic-wise performance charts for students. (Planned)
+   3. Exam Templates: One-click "Duplicate Exam" feature for teachers. (Completed)
+   4. Email System: Automated notifications for exam scheduling and result releases. (Planned)
 
   Conclusion
   The SmartAssess platform is currently feature-complete for its initial release. The next steps involve production deployment followed by the "Intelligence" phases (AI and Advanced Security).

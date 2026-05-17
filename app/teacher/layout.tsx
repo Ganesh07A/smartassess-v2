@@ -90,7 +90,7 @@ export default function TeacherLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  if (status === "loading") {
+  if (status === "loading" && !session) {
     return (
       <div className="h-screen flex flex-col items-center justify-center bg-[#fdfdfd]">
         <div className="w-8 h-8 border-2 border-black/10 border-t-black rounded-full animate-spin"></div>
@@ -98,7 +98,11 @@ export default function TeacherLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!session || session.user.role !== "TEACHER") {
+  if (!session && status !== "loading") {
+    redirect("/login");
+  }
+
+  if (session && session.user.role !== "TEACHER") {
     redirect("/login");
   }
 
@@ -151,13 +155,17 @@ export default function TeacherLayout({ children }: { children: ReactNode }) {
             </button>
             <div className="hidden sm:block h-6 w-[1px] bg-gray-100 mx-2"></div>
             <div className="flex items-center space-x-3">
-              <div className="hidden md:block text-right">
-                <p className="text-[13px] font-bold text-gray-700 leading-none">{session.user.name}</p>
-                <p className="text-[11px] text-gray-400 font-medium mt-1">Instructor</p>
-              </div>
-              <div className="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-500 text-sm">
-                {session.user.name?.[0]}
-              </div>
+              {session && (
+                <>
+                  <div className="hidden md:block text-right">
+                    <p className="text-[13px] font-bold text-gray-700 leading-none">{session.user.name}</p>
+                    <p className="text-[11px] text-gray-400 font-medium mt-1">Instructor</p>
+                  </div>
+                  <div className="w-8 h-8 md:w-9 md:h-9 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center font-bold text-gray-500 text-sm">
+                    {session.user.name?.[0]}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </header>
