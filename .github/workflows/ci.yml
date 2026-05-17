@@ -35,11 +35,11 @@ jobs:
       - name: Build Project
         run: npm run build
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/postgres' }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET || 'build_dummy_secret_749d5b4' }}
           NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL || 'http://localhost:3000' }}
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          PUSHER_APP_ID: ${{ secrets.PUSHER_APP_ID || 'dummy' }}
-          NEXT_PUBLIC_PUSHER_KEY: ${{ secrets.NEXT_PUBLIC_PUSHER_KEY || 'dummy' }}
-          PUSHER_SECRET: ${{ secrets.PUSHER_SECRET || 'dummy' }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY || 'dummy_key' }}
+          PUSHER_APP_ID: ${{ secrets.PUSHER_APP_ID || 'dummy_app_id' }}
+          NEXT_PUBLIC_PUSHER_KEY: ${{ secrets.NEXT_PUBLIC_PUSHER_KEY || 'dummy_key' }}
+          PUSHER_SECRET: ${{ secrets.PUSHER_SECRET || 'dummy_secret' }}
           NEXT_PUBLIC_PUSHER_CLUSTER: ${{ secrets.NEXT_PUBLIC_PUSHER_CLUSTER || 'mt1' }}
