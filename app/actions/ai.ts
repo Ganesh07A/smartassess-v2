@@ -1,8 +1,40 @@
+
 "use server";
 
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
+
+async function callOpenRouter(messages: { role: string; content: string }[], jsonMode: boolean = false) {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    throw new Error("AI Configuration missing (OPENROUTER_API_KEY)");
+  }
+
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "HTTP-Referer": "https://smartassess.vercel.app", 
+      "X-Title": "SmartAssess",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "inclusionai/ring-2.6-1t:free",
+      messages: messages,
+      // Note: Not all free models support strict JSON mode, so we rely on prompting + parsing
+      response_format: jsonMode ? { type: "json_object" } : undefined,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    console.error("OpenRouter API Error:", errorData);
+    throw new Error(errorData.error?.message || `OpenRouter API request failed with status ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.choices[0].message.content;
+}
 
 export async function generateAIQuestions(prompt: string, count: number = 5) {
   try {
@@ -15,25 +47,11 @@ export async function generateAIQuestions(prompt: string, count: number = 5) {
   } catch (error: unknown) {
     const err = error as Error;
     console.error("Critical AI Action Error:", err);
-    // Throwing a clean error message that Next.js can serialize to the client
     throw new Error(err.message || "An unexpected error occurred while generating questions.");
   }
 }
 
 export async function generateAIQuestionsInternal(prompt: string, count: number = 5) {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("AI Configuration missing (GEMINI_API_KEY)");
-  }
-
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ 
-    model: "gemini-2.5-flash",
-    generationConfig: {
-      responseMimeType: "application/json",
-    }
-  });
-
   const systemPrompt = `
     You are an expert examiner. Generate ${count} multiple-choice questions (MCQs) based on the provided text.
     Return the result strictly as a valid JSON array of objects.
@@ -55,25 +73,20 @@ export async function generateAIQuestionsInternal(prompt: string, count: number 
     1. Ensure the questions are technically accurate and challenging.
     2. Provide 4 distinct options for each question.
     3. The correctAnswer must be one of "A", "B", "C", or "D".
+    4. Return ONLY the JSON array. No conversational text.
   `;
 
   try {
-    const result = await model.generateContent([systemPrompt, prompt]);
-    const response = await result.response;
-    
-    // Handle potential content blocking
-    if (response.candidates?.[0]?.finishReason === "SAFETY" || response.candidates?.[0]?.finishReason === "BLOCKLIST") {
-      throw new Error("Content was blocked by AI safety filters. Please try with different text.");
-    }
-
-    const text = response.text();
+    const text = await callOpenRouter([
+      { role: "system", content: systemPrompt },
+      { role: "user", content: prompt }
+    ], true);
     
     try {
-      // In JSON mode, Gemini should return pure JSON
-      const questions = JSON.parse(text);
-      return questions;
+      // Try parsing directly
+      return JSON.parse(text);
     } catch {
-      // Fallback: try extraction if JSON mode somehow failed or added text
+      // Fallback: try extraction if the model added markdown or extra text
       const startIndex = text.indexOf("[");
       const endIndex = text.lastIndexOf("]") + 1;
       
@@ -94,9 +107,8 @@ export async function generateAIQuestionsInternal(prompt: string, count: number 
     const err = error as Error;
     console.error("AI Generation Error Details:", err);
     
-    // Provide more specific error messages for common issues
     if (err?.message?.includes("API_KEY")) {
-      throw new Error("AI service is not configured (Missing API Key).");
+      throw new Error("AI service is not configured (Missing OpenRouter API Key).");
     }
     
     throw new Error(err.message || "Failed to generate questions. Please try again with a clearer prompt.");
@@ -116,14 +128,6 @@ export async function explainCodeSubmission(
   if (!session) {
     throw new Error("Unauthorized");
   }
-
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    throw new Error("AI Configuration missing (GEMINI_API_KEY)");
-  }
-
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
   const prompt = `
     You are an expert programming tutor. A student has submitted code for a coding problem.
@@ -146,9 +150,10 @@ export async function explainCodeSubmission(
   `;
 
   try {
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    return response.text();
+    return await callOpenRouter([
+      { role: "system", content: "You are a helpful and technical programming tutor." },
+      { role: "user", content: prompt }
+    ]);
   } catch (error) {
     console.error("AI Explanation Error:", error);
     throw new Error("Failed to generate AI feedback.");
