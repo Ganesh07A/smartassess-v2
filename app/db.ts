@@ -19,7 +19,7 @@ export const prisma =
             url: dummyUrl,
           },
         },
-      });
+      } as any);
     }
     if (connectionString?.startsWith("prisma+postgres://")) {
       // For Prisma Postgres, we don't use the pg adapter directly
