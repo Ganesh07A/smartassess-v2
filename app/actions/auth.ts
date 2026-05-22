@@ -59,9 +59,22 @@ export async function signUp(data: {
         return { success: false, error: "A student with this PRN is already registered." };
       }
     } else if (role === "TEACHER") {
+      const allowedDomain = process.env.TEACHER_EMAIL_DOMAIN;
       const requiredInviteCode = process.env.TEACHER_SIGNUP_CODE || "SMART_TEACHER_2026";
-      if (!inviteCode || inviteCode.trim() !== requiredInviteCode) {
-        return { success: false, error: "Invalid Admin Invite Code for teacher registration." };
+      
+      const userDomain = email.split("@")[1]?.toLowerCase();
+      const hasInstitutionalEmail = allowedDomain
+        ? allowedDomain.split(",").map((d) => d.trim().toLowerCase()).includes(userDomain || "")
+        : false;
+
+      // If they do not have an institutional email, they must provide the correct invite code
+      if (!hasInstitutionalEmail) {
+        if (!inviteCode || inviteCode.trim() !== requiredInviteCode) {
+          const errorMsg = allowedDomain
+            ? `Invalid registration. Please use an institutional email (${allowedDomain}) or provide a valid Admin Invite Code.`
+            : "Invalid Admin Invite Code for teacher registration.";
+          return { success: false, error: errorMsg };
+        }
       }
     } else {
       return { success: false, error: "Invalid user role specified." };

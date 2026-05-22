@@ -227,9 +227,8 @@ export default function SignUpPage() {
                   </span>
                   <input
                     type="password"
-                    required
                     className="w-full pl-10 pr-4 py-3 bg-white border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-gray-900 font-bold placeholder:text-gray-400 text-sm"
-                    placeholder="Enter registration invite key"
+                    placeholder="Enter registration invite key (optional if using institutional email)"
                     value={inviteCode}
                     onChange={(e) => setInviteCode(e.target.value)}
                   />
