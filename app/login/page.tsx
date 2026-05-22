@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, getSession } from "next-auth/react";
 import { Command, ShieldCheck, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import Link from "next/link";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -20,7 +21,6 @@ export default function LoginPage() {
       const res = await signIn("credentials", {
         email,
         password,
-        callbackUrl: "/",
         redirect: false, // Change to false to handle error with toast
       });
 
@@ -31,7 +31,24 @@ export default function LoginPage() {
         setLoading(false);
       } else {
         toast.success("Login successful! Redirecting...");
-        window.location.href = "/";
+        
+        // Fetch session to retrieve user role
+        const session = await getSession();
+        const role = session?.user?.role;
+        
+        // Retrieve callbackUrl from current URL search params
+        const urlParams = new URLSearchParams(window.location.search);
+        const callbackUrl = urlParams.get("callbackUrl");
+        
+        if (callbackUrl) {
+          window.location.href = callbackUrl;
+        } else if (role === "TEACHER") {
+          window.location.href = "/teacher";
+        } else if (role === "STUDENT") {
+          window.location.href = "/student";
+        } else {
+          window.location.href = "/";
+        }
       }
     } catch {
       const msg = "A connection error occurred. Please try again.";
@@ -104,10 +121,18 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <div className="mt-8 pt-8 border-t border-gray-50 text-center">
+          <div className="mt-8 pt-8 border-t border-gray-50 text-center space-y-4">
             <p className="text-xs text-gray-400 font-medium italic">
               Strict proctoring and tab-monitoring enabled.
             </p>
+            <div className="pt-4 border-t border-gray-100">
+              <p className="text-sm text-gray-500 font-medium">
+                New to SmartAssess?{" "}
+                <Link href="/signup" className="text-blue-600 font-bold hover:underline">
+                  Create an account
+                </Link>
+              </p>
+            </div>
           </div>
         </div>
 
