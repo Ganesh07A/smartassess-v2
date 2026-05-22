@@ -1,8 +1,7 @@
 import { getTeacherExams } from "@/app/actions/exam";
 import { getTeacherBatches } from "@/app/actions/batch";
-import ExamCreator from "./exam-creator";
 import DuplicateButton from "./duplicate-button";
-import { BookOpen, Users, Clock, ArrowRight } from "lucide-react";
+import { BookOpen, Users, Clock, ArrowRight, Plus } from "lucide-react";
 import Link from "next/link";
 
 export const dynamic = 'force-dynamic';
@@ -20,7 +19,13 @@ export default async function ExamsPage() {
           <h2 className="text-3xl font-bold text-gray-800">Exams</h2>
           <p className="text-gray-500">Create and manage your assessments.</p>
         </div>
-        <ExamCreator batches={batches.map(b => ({ id: b.id, name: b.name }))} />
+        <Link
+          href="/teacher/exams/new"
+          className="flex items-center px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 active:scale-[0.98] transition-all duration-200 font-bold text-sm"
+        >
+          <Plus className="w-4.5 h-4.5 mr-2" />
+          Create Exam
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 gap-6">

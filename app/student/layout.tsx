@@ -113,6 +113,11 @@ export default function StudentLayout({ children }: { children: ReactNode }) {
     redirect("/login");
   }
 
+  const isTakingExam = pathname.match(/^\/student\/exams\/[^/]+$/);
+  if (isTakingExam) {
+    return <div className="h-screen w-screen overflow-hidden bg-slate-50">{children}</div>;
+  }
+
   return (
     <div className="flex h-screen bg-[#F9FAFB] overflow-hidden">
       {/* Desktop Sidebar */}
