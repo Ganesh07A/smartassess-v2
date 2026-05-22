@@ -2,7 +2,7 @@
 
 import { prisma } from "@/app/db";
 import bcrypt from "bcryptjs";
-import { Role } from "@/app/generated/prisma";
+import { Role } from "@prisma/client";
 
 export interface SignUpResponse {
   success: boolean;

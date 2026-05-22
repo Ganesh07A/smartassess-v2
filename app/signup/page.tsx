@@ -16,7 +16,7 @@ import {
 import { toast } from "sonner";
 import Link from "next/link";
 import { signUp } from "@/app/actions/auth";
-import { Role } from "@/app/generated/prisma";
+import { Role } from "@prisma/client";
 
 export default function SignUpPage() {
   const [role, setRole] = useState<Role>("STUDENT");
