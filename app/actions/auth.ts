@@ -60,19 +60,20 @@ export async function signUp(data: {
       }
     } else if (role === "TEACHER") {
       const allowedDomain = process.env.TEACHER_EMAIL_DOMAIN;
-      if (allowedDomain) {
-        const domains = allowedDomain.split(",").map((d) => d.trim().toLowerCase());
-        const userDomain = email.split("@")[1]?.toLowerCase();
-        if (!userDomain || !domains.includes(userDomain)) {
-          return {
-            success: false,
-            error: `Only email addresses from authorized domains (${allowedDomain}) can register as teachers.`,
-          };
-        }
-      } else {
-        const requiredInviteCode = process.env.TEACHER_SIGNUP_CODE || "SMART_TEACHER_2026";
+      const requiredInviteCode = process.env.TEACHER_SIGNUP_CODE || "SMART_TEACHER_2026";
+      
+      const userDomain = email.split("@")[1]?.toLowerCase();
+      const hasInstitutionalEmail = allowedDomain
+        ? allowedDomain.split(",").map((d) => d.trim().toLowerCase()).includes(userDomain || "")
+        : false;
+
+      // If they do not have an institutional email, they must provide the correct invite code
+      if (!hasInstitutionalEmail) {
         if (!inviteCode || inviteCode.trim() !== requiredInviteCode) {
-          return { success: false, error: "Invalid Admin Invite Code for teacher registration." };
+          const errorMsg = allowedDomain
+            ? `Invalid registration. Please use an institutional email (${allowedDomain}) or provide a valid Admin Invite Code.`
+            : "Invalid Admin Invite Code for teacher registration.";
+          return { success: false, error: errorMsg };
         }
       }
     } else {
