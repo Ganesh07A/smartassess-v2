@@ -43,10 +43,24 @@ export async function getTeacherExams() {
     throw new Error("Unauthorized");
   }
 
+  // Fetch teacher's department
+  const teacher = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { department: true }
+  });
+
+  const teacherDept = teacher?.department;
+
   return await prisma.exam.findMany({
     where: {
       batch: {
-        teacherId: session.user.id,
+        OR: [
+          { teacherId: session.user.id },
+          ...(teacherDept ? [{ 
+            department: teacherDept,
+            teacherId: null
+          }] : [])
+        ]
       },
     },
     include: {

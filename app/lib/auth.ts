@@ -12,12 +12,18 @@ declare module "next-auth" {
       id: string;
       role: Role;
       prn?: string | null;
+      department?: string | null;
+      year?: string | null;
+      division?: string | null;
     } & DefaultSession["user"];
   }
 
   interface User {
     role: Role;
     prn?: string | null;
+    department?: string | null;
+    year?: string | null;
+    division?: string | null;
   }
 }
 
@@ -26,6 +32,9 @@ declare module "next-auth/jwt" {
     id: string;
     role: Role;
     prn?: string | null;
+    department?: string | null;
+    year?: string | null;
+    division?: string | null;
   }
 }
 
@@ -72,6 +81,9 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           role: user.role,
           prn: user.prn,
+          department: user.department,
+          year: user.year,
+          division: user.division,
         };
       },
     }),
@@ -82,6 +94,9 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.role = user.role;
         token.prn = user.prn;
+        token.department = user.department;
+        token.year = user.year;
+        token.division = user.division;
       }
       return token;
     },
@@ -90,6 +105,9 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id;
         session.user.role = token.role;
         session.user.prn = token.prn;
+        session.user.department = token.department;
+        session.user.year = token.year;
+        session.user.division = token.division;
       }
       return session;
     },

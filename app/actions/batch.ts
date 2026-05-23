@@ -12,12 +12,62 @@ export async function createBatch(name: string) {
     throw new Error("Unauthorized");
   }
 
+  // Fetch teacher's department
+  const teacher = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { department: true }
+  });
+
+  const teacherDept = teacher?.department || null;
+
+  // Create the batch
   const batch = await prisma.batch.create({
     data: {
-      name,
+      name: name.trim(),
       teacherId: session.user.id,
+      department: teacherDept,
     },
   });
+
+  // Attempt to parse name to auto-enroll students (e.g., "TY AIML A")
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 3) {
+    const yearCode = parts[0].toUpperCase();
+    const deptCode = parts[1].toUpperCase();
+    const divCode = parts[parts.length - 1].toUpperCase();
+
+    const yearMapInverse: Record<string, string> = {
+      "FY": "First Year",
+      "SY": "Second Year",
+      "TY": "Third Year",
+      "BE": "Fourth Year"
+    };
+
+    const resolvedYear = yearMapInverse[yearCode];
+    if (resolvedYear) {
+      // Find all students in this year, department, division
+      const matchingStudents = await prisma.user.findMany({
+        where: {
+          role: "STUDENT",
+          year: resolvedYear,
+          department: deptCode,
+          division: divCode
+        },
+        select: { id: true }
+      });
+
+      if (matchingStudents.length > 0) {
+        await prisma.batch.update({
+          where: { id: batch.id },
+          data: {
+            students: {
+              connect: matchingStudents.map(s => ({ id: s.id }))
+            }
+          }
+        });
+      }
+    }
+  }
 
   revalidatePath("/teacher/batches");
   return batch;
@@ -30,9 +80,23 @@ export async function getTeacherBatches() {
     throw new Error("Unauthorized");
   }
 
+  // Fetch teacher's department
+  const teacher = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { department: true }
+  });
+
+  const teacherDept = teacher?.department;
+
   return await prisma.batch.findMany({
     where: {
-      teacherId: session.user.id,
+      OR: [
+        { teacherId: session.user.id },
+        ...(teacherDept ? [{ 
+          department: teacherDept,
+          teacherId: null
+        }] : [])
+      ]
     },
     include: {
       _count: {
