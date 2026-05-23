@@ -11,6 +11,7 @@ export default async function ExamsPage() {
     getTeacherExams(),
     getTeacherBatches(),
   ]);
+  const now = new Date();
 
   return (
     <div className="max-w-6xl mx-auto">
@@ -36,15 +37,41 @@ export default async function ExamsPage() {
             <p className="text-gray-500 mt-1">Configure your first exam to start assessing students.</p>
           </div>
         ) : (
-          exams.map((exam) => (
-            <div key={exam.id} className="bg-white p-6 rounded-xl shadow-sm border group hover:shadow-md transition-all flex flex-col md:flex-row md:items-center justify-between">
-              <div className="flex-1">
-                <div className="flex items-center space-x-3 mb-2">
-                  <h3 className="text-xl font-bold text-gray-800">{exam.title}</h3>
-                  <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded uppercase">
-                    {exam.batch.name}
-                  </span>
-                </div>
+          exams.map((exam) => {
+            const isDraft = !exam.published;
+            const startTime = new Date(exam.startTime);
+            const endTime = new Date(exam.endTime);
+            const isUpcoming = now < startTime;
+            const isExpired = now > endTime;
+
+            return (
+              <div key={exam.id} className="bg-white p-6 rounded-xl shadow-sm border group hover:shadow-md transition-all flex flex-col md:flex-row md:items-center justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center space-x-3 mb-2 flex-wrap gap-y-2">
+                    <h3 className="text-xl font-bold text-gray-800">{exam.title}</h3>
+                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded uppercase">
+                      {exam.batch.name}
+                    </span>
+                    
+                    {isDraft ? (
+                      <span className="px-2.5 py-0.5 bg-amber-50 text-amber-700 text-[10px] font-black uppercase tracking-wider rounded border border-amber-100">
+                        Draft
+                      </span>
+                    ) : isUpcoming ? (
+                      <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider rounded border border-indigo-100">
+                        Upcoming
+                      </span>
+                    ) : isExpired ? (
+                      <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-wider rounded border border-slate-200">
+                        Expired
+                      </span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-wider rounded border border-emerald-100 flex items-center">
+                        <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse mr-1"></span>
+                        Active
+                      </span>
+                    )}
+                  </div>
                 
                 <div className="flex flex-wrap gap-4 text-sm text-gray-500">
                   <div className="flex items-center">
@@ -59,8 +86,9 @@ export default async function ExamsPage() {
                     <Users className="w-4 h-4 mr-1" />
                     {exam._count.sessions} Submissions
                   </div>
-                  <div className="text-gray-400 italic">
-                    Starts: {new Date(exam.startTime).toLocaleString()}
+                  <div className="text-xs text-gray-500 font-bold uppercase tracking-wider flex flex-wrap gap-x-4 gap-y-1">
+                    <span>Start: <span className="text-gray-700 normal-case font-semibold">{new Date(exam.startTime).toLocaleString()}</span></span>
+                    <span>End: <span className="text-gray-700 normal-case font-semibold">{new Date(exam.endTime).toLocaleString()}</span></span>
                   </div>
                 </div>
               </div>
@@ -76,7 +104,8 @@ export default async function ExamsPage() {
                 </Link>
               </div>
             </div>
-          ))
+          );
+        })
         )}
       </div>
     </div>

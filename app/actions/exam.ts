@@ -6,6 +6,7 @@ import { authOptions } from "@/app/lib/auth";
 import { revalidatePath } from "next/cache";
 import { pusherServer } from "@/app/lib/pusher-server";
 import { headers } from "next/headers";
+import { randomUUID } from "crypto";
 
 export async function createExam(data: {
   title: string;
@@ -62,7 +63,7 @@ export async function getTeacherExams() {
       },
     },
     orderBy: {
-      startTime: "desc",
+      createdAt: "desc",
     },
   });
 }
@@ -83,30 +84,40 @@ export async function uploadQuestions(examId: string, questions: QuestionInput[]
     throw new Error("Unauthorized");
   }
 
-  // Transaction to ensure all questions and mappings are created together
-  await prisma.$transaction(async (tx) => {
-    for (const q of questions) {
-      const question = await tx.question.create({
-        data: {
-          type: q.type, // MCQ or CODING
-          content: q.content,
-          options: q.options || {},
-          correctAnswer: q.correctAnswer,
-          testCases: q.testCases || [],
-          points: q.points || 1.0,
-        },
+  // Pre-generate IDs so we can use createMany for high performance (averting transaction timeouts)
+  const questionsWithIds = questions.map((q) => ({
+    id: randomUUID(),
+    type: q.type,
+    content: q.content,
+    options: q.options || {},
+    correctAnswer: q.correctAnswer,
+    testCases: q.testCases || [],
+    points: q.points || 1.0,
+  }));
+
+  const examQuestions = questionsWithIds.map((q) => ({
+    id: randomUUID(),
+    examId,
+    questionId: q.id,
+    points: q.points || 1.0,
+    order: 0,
+  }));
+
+  // Transaction with explicit timeout to ensure bulk insert reliability
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.question.createMany({
+        data: questionsWithIds,
       });
 
-      await tx.examQuestion.create({
-        data: {
-          examId,
-          questionId: question.id,
-          points: q.points || 1.0,
-          order: 0, // Default order, can be updated later
-        },
+      await tx.examQuestion.createMany({
+        data: examQuestions,
       });
+    },
+    {
+      timeout: 15000,
     }
-  });
+  );
 
   revalidatePath(`/teacher/exams/${examId}`);
 }
@@ -261,6 +272,7 @@ export async function getStudentExams() {
 
   return await prisma.exam.findMany({
     where: {
+      published: true,
       batch: {
         students: {
           some: { id: studentId }
@@ -280,7 +292,7 @@ export async function getStudentExams() {
       }
     },
     orderBy: {
-      startTime: "asc"
+      createdAt: "desc"
     }
   });
 }
@@ -735,4 +747,39 @@ export async function duplicateExam(examId: string, targetBatchId?: string) {
 
   revalidatePath("/teacher/exams");
   return newExam;
+}
+
+/**
+ * Publishes an exam so that it becomes visible and accessible to students.
+ * @param examId The ID of the exam to publish
+ */
+export async function publishExam(examId: string) {
+  const session = await getServerSession(authOptions);
+
+  if (!session || session.user.role !== "TEACHER") {
+    throw new Error("Unauthorized");
+  }
+
+  // Verify ownership of the exam before publishing
+  const exam = await prisma.exam.findUnique({
+    where: { 
+      id: examId,
+      batch: { teacherId: session.user.id }
+    },
+  });
+
+  if (!exam) {
+    throw new Error("Exam not found or unauthorized");
+  }
+
+  const updatedExam = await prisma.exam.update({
+    where: { id: examId },
+    data: { published: true },
+  });
+
+  revalidatePath(`/teacher/exams/${examId}`);
+  revalidatePath("/teacher/exams");
+  revalidatePath("/student");
+  
+  return updatedExam;
 }
