@@ -1,14 +1,15 @@
 import { prisma } from "@/app/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
-import { ArrowLeft, BookOpen, Calendar, Clock, Users, BarChart, Radio, Sparkles, HelpCircle, Code } from "lucide-react";
+import { ArrowLeft, BookOpen, Calendar, Clock, Users, BarChart, Radio, Sparkles, HelpCircle, Code, Check } from "lucide-react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import BulkUpload from "./bulk-upload";
 import ManualQuestionAdder from "./manual-adder";
 import DeleteQuestionButton from "./delete-button";
 import EditQuestionModal from "./edit-modal";
 import AIGenerator from "./ai-generator";
+import { publishExam } from "@/app/actions/exam";
 
 export const dynamic = 'force-dynamic';
 
@@ -19,6 +20,12 @@ export default async function ExamDetailsPage({
 }) {
   const { id } = await params;
   const session = await getServerSession(authOptions);
+
+  const handlePublish = async () => {
+    "use server";
+    await publishExam(id);
+    redirect(`/teacher/exams/${id}/live`);
+  };
 
   const exam = await prisma.exam.findUnique({
     where: { 
@@ -85,20 +92,48 @@ export default async function ExamDetailsPage({
               <Calendar className="w-3.5 h-3.5 mr-1.5 text-slate-400" /> 
               Starts: {new Date(exam.startTime).toLocaleDateString()}
             </span>
+            {exam.published ? (
+              <span className="flex items-center px-3 py-1.5 bg-emerald-50 text-emerald-700 font-bold rounded-xl border border-emerald-100/50">
+                <Check className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />
+                Published
+              </span>
+            ) : (
+              <span className="flex items-center px-3 py-1.5 bg-amber-50 text-amber-700 font-bold rounded-xl border border-amber-100/50">
+                <Clock className="w-3.5 h-3.5 mr-1.5 text-amber-500" />
+                Draft
+              </span>
+            )}
           </div>
         </div>
 
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+          {!exam.published ? (
+            <form action={handlePublish}>
+              <button
+                type="submit"
+                className="w-full flex items-center justify-center px-6 py-3 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white font-bold rounded-xl shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 active:scale-[0.98] transition-all text-xs cursor-pointer"
+              >
+                <Sparkles className="w-4 h-4 mr-2 animate-pulse" />
+                Publish Exam
+              </button>
+            </form>
+          ) : (
+            <div className="flex items-center justify-center px-6 py-3 bg-slate-100 border border-slate-200 text-slate-500 font-bold rounded-xl text-xs select-none">
+              <Check className="w-4 h-4 mr-2 text-emerald-600" />
+              Published
+            </div>
+          )}
+
           <Link
             href={`/teacher/exams/${id}/live`}
-            className="flex items-center justify-center px-6 py-3 bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-750 text-white font-bold rounded-xl shadow-lg shadow-red-500/10 hover:shadow-red-500/20 active:scale-[0.98] transition-all text-xs"
+            className="flex items-center justify-center px-6 py-3 bg-gradient-to-r from-rose-500 to-red-600 hover:from-rose-600 hover:to-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-500/10 hover:shadow-red-500/20 active:scale-[0.98] transition-all text-xs"
           >
             <Radio className="w-4 h-4 mr-2 animate-pulse" />
             Monitor Live
           </Link>
           <Link
             href={`/teacher/exams/${id}/results`}
-            className="flex items-center justify-center px-6 py-3 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-750 text-white font-bold rounded-xl shadow-lg shadow-green-500/10 hover:shadow-green-500/20 active:scale-[0.98] transition-all text-xs"
+            className="flex items-center justify-center px-6 py-3 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold rounded-xl shadow-lg shadow-green-500/10 hover:shadow-green-500/20 active:scale-[0.98] transition-all text-xs"
           >
             <BarChart className="w-4 h-4 mr-2" />
             View Results
@@ -169,7 +204,7 @@ export default async function ExamDetailsPage({
                   >
                     <div className="flex-1 mr-6 space-y-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-450">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500">
                           Question {index + 1}
                         </span>
                         <span className="w-1 h-1 rounded-full bg-slate-300"></span>
