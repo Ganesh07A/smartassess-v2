@@ -16,6 +16,9 @@ model User {
   image           String?
   role            Role                 @default(STUDENT)
   prn             String?              @unique
+  department      String?
+  year            String?
+  division        String?
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
   accounts        Account[]
@@ -61,14 +64,15 @@ model VerificationToken {
 }
 
 model Batch {
-  id        String   @id @default(uuid())
-  name      String
-  teacherId String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  teacher   User     @relation("TeacherBatches", fields: [teacherId], references: [id])
-  exams     Exam[]
-  students  User[]   @relation("StudentBatches")
+  id         String   @id @default(uuid())
+  name       String
+  teacherId  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  teacher    User?    @relation("TeacherBatches", fields: [teacherId], references: [id])
+  exams      Exam[]
+  students   User[]   @relation("StudentBatches")
+  department String?
 }
 
 model Exam {

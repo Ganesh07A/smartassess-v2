@@ -28,9 +28,12 @@ export async function signUp(data: {
   role: Role;
   prn?: string;
   inviteCode?: string;
+  department?: string;
+  year?: string;
+  division?: string;
 }): Promise<SignUpResponse> {
   try {
-    const { name, email, password, role, prn, inviteCode } = data;
+    const { name, email, password, role, prn, inviteCode, department, year, division } = data;
 
     // 1. Basic validation
     if (!name || name.trim().length === 0) {
@@ -50,6 +53,15 @@ export async function signUp(data: {
       if (!prn || prn.trim().length === 0) {
         return { success: false, error: "PRN (Permanent Registration Number) is required for students." };
       }
+      if (!department || department.trim().length === 0) {
+        return { success: false, error: "Department is required for students." };
+      }
+      if (!year || year.trim().length === 0) {
+        return { success: false, error: "Year is required for students." };
+      }
+      if (!division || division.trim().length === 0) {
+        return { success: false, error: "Division is required for students." };
+      }
 
       // Check if PRN is already registered
       const existingPrn = await prisma.user.findUnique({
@@ -59,6 +71,9 @@ export async function signUp(data: {
         return { success: false, error: "A student with this PRN is already registered." };
       }
     } else if (role === "TEACHER") {
+      if (!department || department.trim().length === 0) {
+        return { success: false, error: "Department is required for teachers." };
+      }
       const allowedDomain = process.env.TEACHER_EMAIL_DOMAIN;
       const requiredInviteCode = process.env.TEACHER_SIGNUP_CODE || "SMART_TEACHER_2026";
       
@@ -99,8 +114,51 @@ export async function signUp(data: {
         password: hashedPassword,
         role,
         prn: role === "STUDENT" ? prn?.trim() : null,
+        department: department?.trim() || null,
+        year: role === "STUDENT" ? (year?.trim() || null) : null,
+        division: role === "STUDENT" ? (division?.trim() || null) : null,
       },
     });
+
+    // 6. Handle automatic batch mapping for students
+    if (role === "STUDENT" && department && year && division) {
+      const yearMap: Record<string, string> = {
+        "First Year": "FY",
+        "Second Year": "SY",
+        "Third Year": "TY",
+        "Fourth Year": "BE"
+      };
+      const yearCode = yearMap[year.trim()] || year.trim();
+      const batchName = `${yearCode} ${department.trim()} ${division.trim()}`;
+
+      // Find or create global batch for this combination
+      let batch = await prisma.batch.findFirst({
+        where: {
+          name: batchName,
+          department: department.trim()
+        }
+      });
+
+      if (!batch) {
+        batch = await prisma.batch.create({
+          data: {
+            name: batchName,
+            department: department.trim(),
+            teacherId: null // Global department batch
+          }
+        });
+      }
+
+      // Enroll student in this batch
+      await prisma.batch.update({
+        where: { id: batch.id },
+        data: {
+          students: {
+            connect: { id: user.id }
+          }
+        }
+      });
+    }
 
     return {
       success: true,

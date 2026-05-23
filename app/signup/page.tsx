@@ -26,6 +26,9 @@ export default function SignUpPage() {
   const [inviteCode, setInviteCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [department, setDepartment] = useState("AIML");
+  const [year, setYear] = useState("Third Year");
+  const [division, setDivision] = useState("A");
   
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -61,6 +64,9 @@ export default function SignUpPage() {
         role,
         prn: role === "STUDENT" ? prn : undefined,
         inviteCode: role === "TEACHER" ? inviteCode : undefined,
+        department,
+        year: role === "STUDENT" ? year : undefined,
+        division: role === "STUDENT" ? division : undefined,
       });
 
       if (!res.success) {
@@ -193,6 +199,27 @@ export default function SignUpPage() {
               </div>
             </div>
 
+            {/* Department (Common to both Student & Teacher) */}
+            <div>
+              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 px-1">
+                Department
+              </label>
+              <div className="relative">
+                <select
+                  required
+                  className="w-full px-4 py-3 bg-white border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-gray-900 font-bold text-sm cursor-pointer"
+                  value={department}
+                  onChange={(e) => setDepartment(e.target.value)}
+                >
+                  <option value="AIML">AIML (AI & Machine Learning)</option>
+                  <option value="CSE">CSE (Computer Science)</option>
+                  <option value="ECE">ECE (Electronics & Comm)</option>
+                  <option value="MECH">MECH (Mechanical)</option>
+                  <option value="CIVIL">CIVIL (Civil)</option>
+                </select>
+              </div>
+            </div>
+
             {/* Student: PRN */}
             {role === "STUDENT" && (
               <div>
@@ -211,6 +238,45 @@ export default function SignUpPage() {
                     value={prn}
                     onChange={(e) => setPrn(e.target.value)}
                   />
+                </div>
+              </div>
+            )}
+
+            {/* Student: Year & Division */}
+            {role === "STUDENT" && (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 px-1">
+                    Year
+                  </label>
+                  <select
+                    required
+                    className="w-full px-4 py-3 bg-white border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-gray-900 font-bold text-sm cursor-pointer"
+                    value={year}
+                    onChange={(e) => setYear(e.target.value)}
+                  >
+                    <option value="First Year">First Year</option>
+                    <option value="Second Year">Second Year</option>
+                    <option value="Third Year">Third Year</option>
+                    <option value="Fourth Year">Fourth Year</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 px-1">
+                    Division
+                  </label>
+                  <select
+                    required
+                    className="w-full px-4 py-3 bg-white border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-gray-900 font-bold text-sm cursor-pointer"
+                    value={division}
+                    onChange={(e) => setDivision(e.target.value)}
+                  >
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                    <option value="D">D</option>
+                  </select>
                 </div>
               </div>
             )}
