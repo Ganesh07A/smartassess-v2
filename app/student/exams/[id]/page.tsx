@@ -25,7 +25,7 @@ export default async function TakeExamPage({
     }
   });
 
-  if (!exam) {
+  if (!exam || !exam.published) {
     notFound();
   }
 

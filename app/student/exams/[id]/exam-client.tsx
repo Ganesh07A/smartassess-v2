@@ -364,7 +364,7 @@ export default function ExamClient({
           {/* Top Left: Exam Details */}
           <div className="flex items-center space-x-3">
             <div className="p-2.5 bg-indigo-50 rounded-2xl border border-indigo-100/50">
-              <Layers className="w-5 h-5 text-indigo-650" />
+              <Layers className="w-5 h-5 text-indigo-600" />
             </div>
             <div>
               <h1 className="text-sm md:text-base font-black text-slate-800 tracking-tight leading-tight truncate max-w-[200px] md:max-w-xs">
@@ -425,7 +425,7 @@ export default function ExamClient({
           {/* Mobile Palette Toggle */}
           <button 
             onClick={() => setShowPalette(!showPalette)}
-            className="lg:hidden absolute bottom-6 right-6 z-[60] w-12 h-12 bg-white border-2 border-indigo-600 text-indigo-650 rounded-full shadow-2xl flex items-center justify-center"
+            className="lg:hidden absolute bottom-6 right-6 z-[60] w-12 h-12 bg-white border-2 border-indigo-600 text-indigo-600 rounded-full shadow-2xl flex items-center justify-center"
           >
             <div className="grid grid-cols-2 gap-0.5">
               <div className="w-1.5 h-1.5 bg-current rounded-sm"></div>
@@ -480,8 +480,8 @@ export default function ExamClient({
                           >
                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black mr-4 transition-colors text-sm shrink-0 ${
                               isSelected 
-                                ? "bg-indigo-650 text-white" 
-                                : "bg-slate-100 text-slate-450 group-hover:bg-indigo-100 group-hover:text-indigo-650"
+                                ? "bg-indigo-600 text-white" 
+                                : "bg-slate-100 text-slate-500 group-hover:bg-indigo-100 group-hover:text-indigo-600"
                             }`}>
                               {label}
                             </div>
@@ -545,7 +545,7 @@ export default function ExamClient({
                           <button 
                             onClick={handleRunCode}
                             disabled={isExecuting}
-                            className="text-[10px] bg-indigo-650 hover:bg-indigo-500 text-white px-4 py-1.5 rounded-full font-bold transition-all disabled:opacity-50 active:scale-[0.98] shadow-md shadow-indigo-600/10"
+                            className="text-[10px] bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1.5 rounded-full font-bold transition-all disabled:opacity-50 active:scale-[0.98] shadow-md shadow-indigo-600/10"
                           >
                             {isExecuting ? "Executing..." : "Run Code"}
                           </button>
@@ -665,7 +665,7 @@ export default function ExamClient({
                 {currentIdx < questions.length - 1 ? (
                   <button
                     onClick={() => handleIdxChange(currentIdx + 1)}
-                    className="flex items-center px-8 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-750 shadow-lg shadow-indigo-650/15 hover:shadow-indigo-650/25 active:scale-[0.98] transition-all text-xs"
+                    className="flex items-center px-8 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-600/15 hover:shadow-indigo-600/25 active:scale-[0.98] transition-all text-xs"
                   >
                     Next Question
                     <ChevronRight className="w-4 h-4 ml-2" />
@@ -697,7 +697,7 @@ export default function ExamClient({
                   {questions.length} Items
                 </span>
               </h3>
-              <button onClick={() => setShowPalette(false)} className="lg:hidden p-2 text-slate-450 hover:text-slate-655">
+              <button onClick={() => setShowPalette(false)} className="lg:hidden p-2 text-slate-500 hover:text-slate-600">
                 <ChevronRight className="w-6 h-6" />
               </button>
             </div>
@@ -716,7 +716,7 @@ export default function ExamClient({
                       }}
                       className={`w-11 h-11 rounded-xl text-xs font-black transition-all border-2 flex items-center justify-center ${
                         isCurrent 
-                          ? "border-indigo-600 bg-indigo-600 text-white shadow-md shadow-indigo-650/15" 
+                          ? "border-indigo-600 bg-indigo-600 text-white shadow-md shadow-indigo-600/15" 
                           : isAnswered 
                             ? "border-emerald-500 bg-emerald-50 text-emerald-700" 
                             : "border-slate-100 bg-slate-50 text-slate-400 hover:border-slate-200"
@@ -767,7 +767,7 @@ export default function ExamClient({
             </div>
             <button 
               onClick={handleEnterFullScreen}
-              className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-indigo-750 hover:from-indigo-650 hover:to-indigo-800 text-white font-black rounded-xl shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 active:scale-[0.98] transition-all text-xs flex items-center justify-center"
+              className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-600 hover:to-indigo-800 text-white font-black rounded-xl shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 active:scale-[0.98] transition-all text-xs flex items-center justify-center"
             >
               <Maximize className="w-4.5 h-4.5 mr-2" />
               Enter Secure Mode

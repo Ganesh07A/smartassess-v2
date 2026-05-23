@@ -83,6 +83,7 @@ model Exam {
   updatedAt    DateTime             @updatedAt
   allowRunCode Boolean              @default(true)
   shuffleOptions Boolean            @default(true)
+  published    Boolean              @default(false)
   batch        Batch                @relation(fields: [batchId], references: [id], onDelete: Cascade)
   questions    ExamQuestion[]
   sessions     StudentExamSession[]
