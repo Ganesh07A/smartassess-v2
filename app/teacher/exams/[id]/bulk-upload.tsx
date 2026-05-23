@@ -5,23 +5,7 @@ import * as XLSX from "xlsx";
 import { Upload, FileSpreadsheet, Download, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { uploadQuestions } from "@/app/actions/exam";
 
-interface ExcelMCQ {
-  Type: string;
-  Content: string;
-  OptionA: string;
-  OptionB: string;
-  OptionC: string;
-  OptionD: string;
-  CorrectAnswer: string;
-  Points: string | number;
-}
 
-interface ExcelCoding {
-  Type: string;
-  Content: string;
-  TestCases: string;
-  Points: string | number;
-}
 
 export default function BulkUpload({ examId }: { examId: string }) {
   const [loading, setLoading] = useState(false);
@@ -70,8 +54,8 @@ export default function BulkUpload({ examId }: { examId: string }) {
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
-        const bstr = evt.target?.result as string;
-        const wb = XLSX.read(bstr, { type: "binary" });
+        const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+        const wb = XLSX.read(data, { type: "array" });
         
         const allQuestions: {
           type: "MCQ" | "CODING";
@@ -82,54 +66,92 @@ export default function BulkUpload({ examId }: { examId: string }) {
           points: number;
         }[] = [];
 
-        // Parse MCQs
-        if (wb.SheetNames.includes("MCQs")) {
-          const mcqData = XLSX.utils.sheet_to_json(wb.Sheets["MCQs"]) as ExcelMCQ[];
-          mcqData.forEach((q) => {
-            allQuestions.push({
-              type: "MCQ",
-              content: q.Content,
-              options: {
-                A: q.OptionA,
-                B: q.OptionB,
-                C: q.OptionC,
-                D: q.OptionD,
-              },
-              correctAnswer: q.CorrectAnswer,
-              points: typeof q.Points === "number" ? q.Points : parseFloat(q.Points) || 1.0,
-            });
-          });
-        }
+        // Parse all sheets in the workbook to be highly flexible and robust
+        for (const sheetName of wb.SheetNames) {
+          const sheet = wb.Sheets[sheetName];
+          if (!sheet) continue;
 
-        // Parse Coding Questions
-        if (wb.SheetNames.includes("Coding")) {
-          const codingData = XLSX.utils.sheet_to_json(wb.Sheets["Coding"]) as ExcelCoding[];
-          codingData.forEach((q) => {
-            const rawCases = q.TestCases || "";
-            let testCases: { input: string; output: string }[] = [];
-            
-            try {
-              // Try parsing as JSON first for backward compatibility
-              testCases = JSON.parse(rawCases);
-            } catch {
-              // If not JSON, parse as "input | output" lines
-              testCases = rawCases.split("\n").filter(line => line.includes("|")).map(line => {
-                const [input, output] = line.split("|").map(s => s.trim());
-                return { input, output };
+          const sheetData = XLSX.utils.sheet_to_json(sheet) as Record<string, unknown>[];
+          if (!sheetData || sheetData.length === 0) continue;
+
+          sheetData.forEach((row) => {
+            // Find key-value pairs with case-insensitive and space-trimmed keys
+            const normalizedRow: Record<string, unknown> = {};
+            Object.keys(row).forEach((key) => {
+              const normalizedKey = key.toLowerCase().replace(/\s+/g, "");
+              normalizedRow[normalizedKey] = row[key];
+            });
+
+            const contentVal = normalizedRow["content"];
+            const content = contentVal ? String(contentVal).trim() : "";
+            // Skip rows without content to avoid reading empty template rows
+            if (!content) return;
+
+            const typeVal = normalizedRow["type"];
+            const type = typeVal ? String(typeVal).toUpperCase().trim() : "";
+            const pointsVal = normalizedRow["points"];
+            const points = typeof pointsVal === "number" ? pointsVal : parseFloat(String(pointsVal || "")) || 1.0;
+
+            const optionAVal = normalizedRow["optiona"];
+            const optionBVal = normalizedRow["optionb"];
+            const optionCVal = normalizedRow["optionc"];
+            const optionDVal = normalizedRow["optiond"];
+            const correctAnswerVal = normalizedRow["correctanswer"];
+            const testcasesVal = normalizedRow["testcases"];
+
+            // Determine if the question is MCQ or CODING
+            // Check 'type' first, then fall back to inferring by the presence of options/testcases keys
+            if (
+              type === "MCQ" ||
+              (!type && (correctAnswerVal !== undefined || optionAVal !== undefined))
+            ) {
+              allQuestions.push({
+                type: "MCQ",
+                content,
+                options: {
+                  A: (optionAVal !== undefined ? String(optionAVal) : "").trim(),
+                  B: (optionBVal !== undefined ? String(optionBVal) : "").trim(),
+                  C: (optionCVal !== undefined ? String(optionCVal) : "").trim(),
+                  D: (optionDVal !== undefined ? String(optionDVal) : "").trim(),
+                },
+                correctAnswer: (correctAnswerVal !== undefined ? String(correctAnswerVal) : "").trim().toUpperCase(),
+                points,
+              });
+            } else if (
+              type === "CODING" ||
+              (!type && testcasesVal !== undefined)
+            ) {
+              const rawCases = testcasesVal;
+              let testCases: { input: string; output: string }[] = [];
+
+              if (typeof rawCases === "string") {
+                try {
+                  testCases = JSON.parse(rawCases);
+                } catch {
+                  testCases = rawCases
+                    .split("\n")
+                    .filter((line) => line.includes("|"))
+                    .map((line) => {
+                      const [input, output] = line.split("|").map((s) => s.trim());
+                      return { input, output };
+                    });
+                }
+              } else if (Array.isArray(rawCases)) {
+                testCases = rawCases as { input: string; output: string }[];
+              }
+
+              allQuestions.push({
+                type: "CODING",
+                content,
+                testCases: Array.isArray(testCases) ? testCases : [],
+                points,
               });
             }
-
-            allQuestions.push({
-              type: "CODING",
-              content: q.Content,
-              testCases: testCases.length > 0 ? testCases : [],
-              points: typeof q.Points === "number" ? q.Points : parseFloat(q.Points) || 1.0,
-            });
           });
         }
 
         if (allQuestions.length === 0) {
-          throw new Error("No questions found in the file.");
+          throw new Error("No questions found in the file. Please ensure sheet names or columns match the template.");
         }
 
         await uploadQuestions(examId, allQuestions);
@@ -141,12 +163,12 @@ export default function BulkUpload({ examId }: { examId: string }) {
         setLoading(false);
       }
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   };
 
   return (
     <div className="bg-white p-6 rounded-xl border shadow-sm">
-      <h3 className="text-lg font-semibold mb-4 flex items-center">
+      <h3 className="text-lg text-black font-semibold mb-4 flex items-center">
         <FileSpreadsheet className="w-5 h-5 mr-2 text-green-600" />
         Bulk Upload Questions
       </h3>
