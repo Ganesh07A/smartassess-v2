@@ -1,5 +1,4 @@
 import { getTeacherExams } from "@/app/actions/exam";
-import { getTeacherBatches } from "@/app/actions/batch";
 import DuplicateButton from "./duplicate-button";
 import { BookOpen, Users, Clock, ArrowRight, Plus } from "lucide-react";
 import Link from "next/link";
@@ -7,10 +6,7 @@ import Link from "next/link";
 export const dynamic = 'force-dynamic';
 
 export default async function ExamsPage() {
-  const [exams, batches] = await Promise.all([
-    getTeacherExams(),
-    getTeacherBatches(),
-  ]);
+  const exams = await getTeacherExams();
   const now = new Date();
 
   return (
