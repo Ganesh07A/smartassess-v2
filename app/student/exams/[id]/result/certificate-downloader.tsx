@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Award, Loader2 } from "lucide-react";
 import jsPDF from "jspdf";
+import { toast } from "sonner";
 
 interface CertificateDownloaderProps {
   certificate: {
@@ -94,7 +95,7 @@ export default function CertificateDownloader({
       doc.save(`Certificate_${student.name}_${exam.title}.pdf`);
     } catch (error) {
       console.error("PDF Generation Error:", error);
-      alert("Failed to generate certificate.");
+      toast.error("Failed to generate certificate.");
     } finally {
       setIsGenerating(false);
     }

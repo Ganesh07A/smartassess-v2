@@ -5,6 +5,7 @@ import { FileSpreadsheet, Printer } from "lucide-react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { toast } from "sonner";
 
 interface ResultExporterProps {
   exam: {
@@ -54,7 +55,7 @@ export default function ResultExporter({ exam, results }: ResultExporterProps) {
       XLSX.writeFile(workbook, `${exam.title}_Results.xlsx`);
     } catch (err) {
       console.error("Excel Export Error:", err);
-      alert("Failed to export Excel report.");
+      toast.error("Failed to export Excel report.");
     } finally {
       setIsExporting(false);
     }
@@ -112,7 +113,7 @@ export default function ResultExporter({ exam, results }: ResultExporterProps) {
       doc.save(`${exam.title}_Official_Report.pdf`);
     } catch (err) {
       console.error("PDF Export Error:", err);
-      alert("Failed to export PDF report.");
+      toast.error("Failed to export PDF report.");
     } finally {
       setIsExporting(false);
     }

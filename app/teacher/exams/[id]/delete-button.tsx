@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Trash2, Loader2 } from "lucide-react";
 import { removeQuestionFromExam } from "@/app/actions/exam";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 export default function DeleteQuestionButton({ 
   examId, 
@@ -26,7 +27,7 @@ export default function DeleteQuestionButton({
       router.refresh();
     } catch (err) {
       console.error("Failed to delete question:", err);
-      alert("Failed to delete question.");
+      toast.error("Failed to delete question.");
     } finally {
       setLoading(false);
     }
