@@ -48,8 +48,8 @@ export default async function TakeExamPage({
     throw new Error("Failed to initialize exam session");
   }
 
-  if (examSession.status === "COMPLETED") {
-    redirect("/student");
+  if (examSession.status === "COMPLETED" || examSession.status === "FORCE_SUBMITTED") {
+    redirect(`/student/exams/${id}/result`);
   }
 
   // Fetch questions in the order saved in the session
@@ -81,7 +81,9 @@ export default async function TakeExamPage({
       session={{
         id: examSession.id,
         startTime: examSession.startTime,
-        optionsMapping: examSession.optionsMapping as Record<string, string[]> | null
+        optionsMapping: examSession.optionsMapping as Record<string, string[]> | null,
+        isBlurred: examSession.isBlurred,
+        tabSwitches: examSession.tabSwitches,
       }} 
       questions={sortedQuestions.map(q => ({
         id: q.id,

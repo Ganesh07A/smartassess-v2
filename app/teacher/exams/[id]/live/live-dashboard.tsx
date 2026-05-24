@@ -136,7 +136,7 @@ export default function LiveDashboard({
   );
 
   const activeCount = sessionList.filter(s => s.status === "STARTED").length;
-  const completedCount = sessionList.filter(s => s.status === "COMPLETED").length;
+  const completedCount = sessionList.filter(s => s.status === "COMPLETED" || s.status === "FORCE_SUBMITTED").length;
 
   return (
     <div className="space-y-6">
@@ -245,9 +245,10 @@ export default function LiveDashboard({
                       <td className="px-6 py-4">
                         <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${
                           s.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : 
+                          s.status === 'FORCE_SUBMITTED' ? 'bg-red-100 text-red-700 font-extrabold border border-red-200' : 
                           s.status === 'STARTED' ? 'bg-blue-100 text-blue-700 animate-pulse' : 'bg-gray-100 text-gray-600'
                         }`}>
-                          {s.status}
+                          {s.status.replace('_', ' ')}
                         </span>
                       </td>
                       <td className="px-6 py-4">
