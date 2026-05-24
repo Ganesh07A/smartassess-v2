@@ -7,13 +7,10 @@ import {
   BookOpen, 
   Code2, 
   Plus, 
-  X, 
   Loader2, 
   Check, 
-  ChevronRight, 
   PlusCircle, 
-  Trash2,
-  HelpCircle
+  Trash2
 } from "lucide-react";
 import { uploadQuestions } from "@/app/actions/exam";
 
@@ -123,7 +120,7 @@ export default function QuestionBuilderForm({ examId }: { examId: string }) {
             onClick={() => setType("MCQ")}
             className={`flex items-center justify-center py-4 px-6 rounded-2xl border-2 transition-all duration-200 ${
               type === "MCQ" 
-                ? "border-indigo-500 bg-indigo-50/50 text-indigo-750 font-black shadow-sm" 
+                ? "border-indigo-500 bg-indigo-50/50 text-indigo-700 font-black shadow-sm" 
                 : "border-slate-100 bg-slate-50/50 text-slate-550 font-bold hover:bg-slate-100/50 hover:text-slate-700"
             }`}
           >
@@ -135,7 +132,7 @@ export default function QuestionBuilderForm({ examId }: { examId: string }) {
             onClick={() => setType("CODING")}
             className={`flex items-center justify-center py-4 px-6 rounded-2xl border-2 transition-all duration-200 ${
               type === "CODING" 
-                ? "border-teal-500 bg-teal-50/50 text-teal-750 font-black shadow-sm" 
+                ? "border-teal-500 bg-teal-50/50 text-teal-700 font-black shadow-sm" 
                 : "border-slate-100 bg-slate-50/50 text-slate-550 font-bold hover:bg-slate-100/50 hover:text-slate-700"
             }`}
           >
@@ -351,7 +348,7 @@ export default function QuestionBuilderForm({ examId }: { examId: string }) {
             <button
               type="submit"
               disabled={loading}
-              className="inline-flex items-center justify-center px-8 py-3 bg-gradient-to-r from-indigo-600 to-indigo-750 text-white font-black rounded-xl hover:from-indigo-650 hover:to-indigo-800 shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 active:scale-[0.98] transition-all text-xs disabled:opacity-50"
+              className="inline-flex items-center justify-center px-8 py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-black rounded-xl hover:from-indigo-600 hover:to-indigo-800 shadow-lg shadow-indigo-600/10 hover:shadow-indigo-600/20 active:scale-[0.98] transition-all text-xs disabled:opacity-50"
             >
               {loading && !addAnother ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />

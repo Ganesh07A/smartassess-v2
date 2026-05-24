@@ -11,7 +11,9 @@ import {
   Lock, 
   Hash, 
   Key, 
-  CheckCircle2 
+  CheckCircle2,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -32,6 +34,9 @@ export default function SignUpPage() {
   
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showInviteCode, setShowInviteCode] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -213,9 +218,7 @@ export default function SignUpPage() {
                 >
                   <option value="AIML">AIML (AI & Machine Learning)</option>
                   <option value="CSE">CSE (Computer Science)</option>
-                  <option value="ECE">ECE (Electronics & Comm)</option>
-                  <option value="MECH">MECH (Mechanical)</option>
-                  <option value="CIVIL">CIVIL (Civil)</option>
+                  <option value="DS">DS (Data Science)</option>
                 </select>
               </div>
             </div>
@@ -292,12 +295,23 @@ export default function SignUpPage() {
                     <Key className="w-4 h-4" />
                   </span>
                   <input
-                    type="password"
-                    className="w-full pl-10 pr-4 py-3 bg-white border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-gray-900 font-bold placeholder:text-gray-400 text-sm"
+                    type={showInviteCode ? "text" : "password"}
+                    className="w-full pl-10 pr-12 py-3 bg-white border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-gray-900 font-bold placeholder:text-gray-400 text-sm"
                     placeholder="Enter registration invite key (optional if using institutional email)"
                     value={inviteCode}
                     onChange={(e) => setInviteCode(e.target.value)}
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowInviteCode(!showInviteCode)}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-1"
+                  >
+                    {showInviteCode ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
                 </div>
               </div>
             )}
@@ -312,13 +326,24 @@ export default function SignUpPage() {
                   <Lock className="w-4 h-4" />
                 </span>
                 <input
-                  type="password"
+                  type={showPassword ? "text" : "password"}
                   required
-                  className="w-full pl-10 pr-4 py-3 bg-white border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-gray-900 font-bold placeholder:text-gray-400 text-sm"
+                  className="w-full pl-10 pr-12 py-3 bg-white border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-gray-900 font-bold placeholder:text-gray-400 text-sm"
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-1"
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
               </div>
             </div>
 
@@ -332,13 +357,24 @@ export default function SignUpPage() {
                   <Lock className="w-4 h-4" />
                 </span>
                 <input
-                  type="password"
+                  type={showConfirmPassword ? "text" : "password"}
                   required
-                  className="w-full pl-10 pr-4 py-3 bg-white border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-gray-900 font-bold placeholder:text-gray-400 text-sm"
+                  className="w-full pl-10 pr-12 py-3 bg-white border-2 border-gray-100 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-gray-900 font-bold placeholder:text-gray-400 text-sm"
                   placeholder="••••••••"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors p-1"
+                >
+                  {showConfirmPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
               </div>
             </div>
 

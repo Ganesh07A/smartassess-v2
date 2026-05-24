@@ -58,7 +58,7 @@ export default async function ExamDetailsPage({
       <div className="flex items-center">
         <Link
           href="/teacher/exams"
-          className="flex items-center text-xs font-semibold text-gray-500 hover:text-indigo-650 transition-colors py-1.5 px-3 hover:bg-gray-100 rounded-xl"
+          className="flex items-center text-xs font-semibold text-gray-500 hover:text-indigo-600 transition-colors py-1.5 px-3 hover:bg-gray-100 rounded-xl"
         >
           <ArrowLeft className="w-4 h-4 mr-1.5" />
           Back to Examinations
