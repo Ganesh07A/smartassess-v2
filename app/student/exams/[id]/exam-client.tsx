@@ -374,6 +374,25 @@ export default function ExamClient({
       }
     };
 
+    const handleWindowBlur = async () => {
+      setIsBlurred(true);
+      try {
+        const res = await logTabSwitch(session.id);
+        if (res) {
+          setTabSwitches(res.tabSwitches);
+          if (res.status === "FORCE_SUBMITTED") {
+            if (document.fullscreenElement) {
+              document.exitFullscreen();
+            }
+            router.push(`/student/exams/${exam.id}/result`);
+            router.refresh();
+          }
+        }
+      } catch (err) {
+        console.error("Failed to log window blur:", err);
+      }
+    };
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
     document.addEventListener("fullscreenchange", handleFullScreenChange);
     document.addEventListener("copy", preventClipboard);
@@ -382,6 +401,7 @@ export default function ExamClient({
     document.addEventListener("contextmenu", preventContextMenu);
     window.addEventListener("beforeunload", handleBeforeUnload);
     window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("blur", handleWindowBlur);
     
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -392,6 +412,7 @@ export default function ExamClient({
       document.removeEventListener("contextmenu", preventContextMenu);
       window.removeEventListener("beforeunload", handleBeforeUnload);
       window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("blur", handleWindowBlur);
     };
   }, [session.id, exam.id, router]);
 
