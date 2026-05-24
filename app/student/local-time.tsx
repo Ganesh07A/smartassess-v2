@@ -2,18 +2,16 @@
 
 import { useEffect, useState } from "react";
 
-interface LocalTimeProps {
-  dateString: string | Date;
-}
-
 export default function LocalTime({ dateString }: { dateString: string | Date }) {
   const [formattedTime, setFormattedTime] = useState<string>("");
 
   useEffect(() => {
     const date = new Date(dateString);
-    setFormattedTime(
-      date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    );
+    const time = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const timer = setTimeout(() => {
+      setFormattedTime(time);
+    }, 0);
+    return () => clearTimeout(timer);
   }, [dateString]);
 
   // Initially render a skeleton/empty tag, then mount the client formatted time.

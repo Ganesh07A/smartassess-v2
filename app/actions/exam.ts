@@ -705,7 +705,7 @@ export async function logTabSwitch(sessionId: string) {
     throw new Error("Unauthorized");
   }
 
-  let updatedSession = await prisma.studentExamSession.update({
+  const updatedSession = await prisma.studentExamSession.update({
     where: { 
       id: sessionId,
       studentId: session.user.id
