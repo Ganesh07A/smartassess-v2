@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Edit2, X, Loader2, BookOpen, Code2, Save, Plus } from "lucide-react";
 import { updateQuestion } from "@/app/actions/exam";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 interface Question {
   id: string;
@@ -73,7 +74,7 @@ export default function EditQuestionModal({
       router.refresh();
     } catch (err) {
       console.error("Failed to update question:", err);
-      alert("Failed to update question. Please check your data.");
+      toast.error("Failed to update question. Please check your data.");
     } finally {
       setLoading(false);
     }

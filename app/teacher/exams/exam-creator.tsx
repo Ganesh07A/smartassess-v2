@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Plus, Calendar, Loader2 } from "lucide-react";
 import { createExam } from "@/app/actions/exam";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 interface Batch {
   id: string;
@@ -40,7 +41,7 @@ export default function ExamCreator({ batches }: { batches: Batch[] }) {
       router.push(`/teacher/exams/${exam.id}`);
     } catch (err) {
       console.error("Failed to create exam:", err);
-      alert("Failed to create exam. Please ensure all fields are correct and the times are valid.");
+      toast.error("Failed to create exam. Please ensure all fields are correct and the times are valid.");
     } finally {
       setLoading(false);
     }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Download } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { toast } from "sonner";
 
 interface StudentResultExporterProps {
   student: {
@@ -109,7 +110,7 @@ export default function StudentResultExporter({
       doc.save(`${student.name}_${exam.title}_Report.pdf`);
     } catch (err) {
       console.error("Report Download Error:", err);
-      alert("Failed to generate report.");
+      toast.error("Failed to generate report.");
     } finally {
       setIsExporting(false);
     }

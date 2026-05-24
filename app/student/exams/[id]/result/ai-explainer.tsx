@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Sparkles, Loader2, ChevronDown, ChevronUp } from "lucide-react";
 import { explainCodeSubmission } from "@/app/actions/ai";
 import ReactMarkdown from "react-markdown";
+import { toast } from "sonner";
 
 interface AIExplainerProps {
   questionContent: string;
@@ -35,7 +36,7 @@ export default function AIExplainer({
       setIsOpen(true);
     } catch (err) {
       console.error(err);
-      alert("Failed to get AI feedback. Please try again later.");
+      toast.error("Failed to get AI feedback. Please try again later.");
     } finally {
       setIsLoading(false);
     }

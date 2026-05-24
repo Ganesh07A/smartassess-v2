@@ -14,8 +14,7 @@ import {
   Sparkles, 
   Lock,
   ArrowRight,
-  HelpCircle,
-  FileText
+  HelpCircle
 } from "lucide-react";
 
 interface Batch {
@@ -309,7 +308,7 @@ export default function NewExamForm({ batches }: { batches: Batch[] }) {
                   required
                   value={formData.startTime}
                   onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                  className="w-full pl-12 pr-5 py-3.5 bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-600 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all font-bold text-slate-850"
+                  className="w-full pl-12 pr-5 py-3.5 bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-600 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all font-bold text-slate-800"
                 />
                 <Calendar className="w-4 h-4 text-slate-400 absolute left-4.5 top-1/2 -translate-y-1/2" />
               </div>
@@ -325,7 +324,7 @@ export default function NewExamForm({ batches }: { batches: Batch[] }) {
                   required
                   value={formData.endTime}
                   onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                  className="w-full pl-12 pr-5 py-3.5 bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-600 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all font-bold text-slate-850"
+                  className="w-full pl-12 pr-5 py-3.5 bg-slate-50/50 hover:bg-slate-50/80 focus:bg-white border border-slate-200 hover:border-slate-300 focus:border-indigo-600 rounded-2xl outline-none focus:ring-4 focus:ring-indigo-500/10 transition-all font-bold text-slate-800"
                 />
                 <Calendar className="w-4 h-4 text-slate-400 absolute left-4.5 top-1/2 -translate-y-1/2" />
               </div>

@@ -96,6 +96,7 @@ export default function ExamClient({
   } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
 
   // Monaco Editor Local State & Custom Stdin
   const [editorCode, setEditorCode] = useState(() => {
@@ -147,24 +148,26 @@ export default function ExamClient({
     }
   }, [currentQuestion.id, editorCode, selectedLanguage, saveCodeToDb]);
 
-  const handleFinishExam = useCallback(async () => {
-    if (confirm("Are you sure you want to finish the exam? All your answers will be evaluated and submitted.")) {
-      flushSave();
-      setIsSubmitting(true);
-      try {
-        await submitExam(session.id);
-        if (document.fullscreenElement) {
-          document.exitFullscreen();
-        }
-        router.push(`/student/exams/${exam.id}/result`);
-        router.refresh();
-      } catch (err) {
-        console.error(err);
-        toast.error("Failed to submit exam. Please check your connection.");
-        setIsSubmitting(false);
+  const performSubmit = useCallback(async () => {
+    flushSave();
+    setIsSubmitting(true);
+    try {
+      await submitExam(session.id);
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
       }
+      router.push(`/student/exams/${exam.id}/result`);
+      router.refresh();
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to submit exam. Please check your connection.");
+      setIsSubmitting(false);
     }
   }, [session.id, exam.id, router, flushSave]);
+
+  const handleFinishExam = useCallback(() => {
+    setShowSubmitModal(true);
+  }, []);
 
   const handleIdxChange = useCallback((newIdx: number) => {
     flushSave();
@@ -277,35 +280,41 @@ export default function ExamClient({
       setTimeLeft(diff);
       
       if (diff === 0) {
-        handleFinishExam();
+        performSubmit();
       }
     };
 
     updateTimer();
     const timer = setInterval(updateTimer, 1000);
     return () => clearInterval(timer);
-  }, [exam.endTime, exam.duration, session.startTime, handleFinishExam]);
+  }, [exam.endTime, exam.duration, session.startTime, performSubmit]);
 
   // Anti-Cheat: Visibility Change & Clipboard Blocking
   useEffect(() => {
+    const handleTabViolation = async (reason: string) => {
+      setIsBlurred(true);
+      try {
+        const res = await logTabSwitch(session.id);
+        if (res) {
+          setTabSwitches(res.tabSwitches);
+          const remaining = Math.max(0, 3 - res.tabSwitches);
+          toast.warning(`Security Warning: Tab switch or focus loss detected (${reason}). Remaining attempts: ${remaining}`);
+          if (res.status === "FORCE_SUBMITTED") {
+            if (document.fullscreenElement) {
+              await document.exitFullscreen();
+            }
+            router.push(`/student/exams/${exam.id}/result`);
+            router.refresh();
+          }
+        }
+      } catch (err) {
+        console.error("Failed to log tab switch:", err);
+      }
+    };
+
     const handleVisibilityChange = async () => {
       if (document.hidden) {
-        setIsBlurred(true);
-        try {
-          const res = await logTabSwitch(session.id);
-          if (res) {
-            setTabSwitches(res.tabSwitches);
-            if (res.status === "FORCE_SUBMITTED") {
-              if (document.fullscreenElement) {
-                document.exitFullscreen();
-              }
-              router.push(`/student/exams/${exam.id}/result`);
-              router.refresh();
-            }
-          }
-        } catch (err) {
-          console.error("Failed to log tab switch:", err);
-        }
+        await handleTabViolation("Tab Switched");
       }
     };
 
@@ -313,24 +322,13 @@ export default function ExamClient({
       const isCurrentlyFull = !!document.fullscreenElement;
       setIsFullScreen(isCurrentlyFull);
       if (!isCurrentlyFull) {
-        setIsBlurred(true);
-        try {
-          const res = await logTabSwitch(session.id);
-          if (res) {
-            setTabSwitches(res.tabSwitches);
-            if (res.status === "FORCE_SUBMITTED") {
-              router.push(`/student/exams/${exam.id}/result`);
-              router.refresh();
-            }
-          }
-        } catch (err) {
-          console.error("Failed to log full-screen exit:", err);
-        }
+        await handleTabViolation("Exited Fullscreen");
       }
     };
 
     const preventClipboard = (e: ClipboardEvent) => {
       e.preventDefault();
+      toast.warning("Warning: Clipboard action blocked. Do not copy, paste, or cut during the exam.");
     };
 
     const preventContextMenu = (e: MouseEvent) => {
@@ -346,17 +344,32 @@ export default function ExamClient({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "F12") {
         e.preventDefault();
-        toast.error("Developer tools are disabled during the exam.");
+        toast.warning("Warning: Action blocked. Developer tools (F12) are disabled. Do not do that.");
         return;
       }
       if (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "J" || e.key === "C" || e.key === "i" || e.key === "j" || e.key === "c")) {
         e.preventDefault();
-        toast.error("Developer tools are disabled during the exam.");
+        toast.warning("Warning: Action blocked. Developer tools are disabled. Do not do that.");
         return;
       }
       if (e.ctrlKey && (e.key === "U" || e.key === "u")) {
         e.preventDefault();
-        toast.error("Viewing source is disabled during the exam.");
+        toast.warning("Warning: Action blocked. Viewing source code is disabled. Do not do that.");
+        return;
+      }
+      if (e.ctrlKey && (e.key === "C" || e.key === "c")) {
+        e.preventDefault();
+        toast.warning("Warning: Copying is disabled. Do not do that.");
+        return;
+      }
+      if (e.ctrlKey && (e.key === "V" || e.key === "v")) {
+        e.preventDefault();
+        toast.warning("Warning: Pasting is disabled. Do not do that.");
+        return;
+      }
+      if (e.ctrlKey && (e.key === "X" || e.key === "x")) {
+        e.preventDefault();
+        toast.warning("Warning: Cutting is disabled. Do not do that.");
         return;
       }
       if (e.ctrlKey && (e.key === "S" || e.key === "s")) {
@@ -369,9 +382,13 @@ export default function ExamClient({
       }
       if ((e.ctrlKey && (e.key === "R" || e.key === "r")) || e.key === "F5") {
         e.preventDefault();
-        toast.error("Refreshing the page is disabled. Please navigate using the exam interface.");
+        toast.warning("Warning: Refreshing the page is disabled. Please navigate using the exam interface.");
         return;
       }
+    };
+
+    const handleWindowBlur = async () => {
+      await handleTabViolation("Window Focus Lost");
     };
 
     document.addEventListener("visibilitychange", handleVisibilityChange);
@@ -382,6 +399,7 @@ export default function ExamClient({
     document.addEventListener("contextmenu", preventContextMenu);
     window.addEventListener("beforeunload", handleBeforeUnload);
     window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("blur", handleWindowBlur);
     
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -392,8 +410,16 @@ export default function ExamClient({
       document.removeEventListener("contextmenu", preventContextMenu);
       window.removeEventListener("beforeunload", handleBeforeUnload);
       window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("blur", handleWindowBlur);
     };
   }, [session.id, exam.id, router]);
+
+  // Show welcome warning toast on start
+  useEffect(() => {
+    const remaining = Math.max(0, 3 - tabSwitches);
+    toast.info(`Security system active. fullscreen & tab monitoring is enabled. Clipboard (copy/paste), developer tools, and refreshing are locked. Remaining tab switch attempts: ${remaining}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleEnterFullScreen = () => {
     const elem = document.documentElement;
@@ -470,12 +496,12 @@ export default function ExamClient({
 
           {/* Top Center: Timer & Sync Status */}
           <div className="flex items-center space-x-4">
-            <div className={`flex items-center px-4 py-1.5 rounded-xl border-2 font-mono font-bold text-sm ${
+            <div className={`flex items-center px-4 py-1.5 rounded-xl border font-mono font-black text-sm shadow-sm transition-all ${
               timeLeft < 300 
-                ? 'border-red-500 bg-red-50 text-red-650 animate-pulse' 
-                : 'border-indigo-100 bg-indigo-50/50 text-indigo-750'
+                ? 'border-red-600 bg-red-600 text-white animate-pulse' 
+                : 'border-indigo-600 bg-indigo-600 text-white shadow-indigo-50'
             }`}>
-              <Clock className="w-4 h-4 mr-1.5 shrink-0" />
+              <Clock className="w-4 h-4 mr-1.5 shrink-0 text-white" />
               {formatTime(timeLeft)}
             </div>
 
@@ -518,7 +544,7 @@ export default function ExamClient({
 
             <button 
               onClick={handleFinishExam}
-              className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-750 text-white font-bold rounded-xl shadow-lg shadow-green-500/10 hover:shadow-green-500/20 active:scale-[0.98] transition-all flex items-center text-xs"
+              className="px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-bold rounded-xl shadow-lg shadow-green-500/10 hover:shadow-green-500/20 active:scale-[0.98] transition-all flex items-center text-xs"
             >
               <Send className="w-3.5 h-3.5 mr-1.5 shrink-0" />
               Finish Exam
@@ -582,8 +608,8 @@ export default function ExamClient({
                             onClick={() => handleSaveAnswer(currentQuestion.id, { mcqAnswer: originalKey })}
                             className={`group flex items-center p-5 rounded-2xl border-2 transition-all text-left ${
                               isSelected 
-                                ? "border-indigo-500 bg-indigo-50/50 text-indigo-750 shadow-md shadow-indigo-100/50" 
-                                : "border-slate-100 hover:border-slate-200 bg-white text-slate-650 hover:bg-slate-50/20"
+                                ? "border-indigo-500 bg-indigo-50/50 text-indigo-700 shadow-md shadow-indigo-100/50" 
+                                : "border-slate-100 hover:border-slate-200 bg-white text-slate-600 hover:bg-slate-50/20"
                             }`}
                           >
                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-black mr-4 transition-colors text-sm shrink-0 ${
@@ -630,7 +656,7 @@ export default function ExamClient({
                   </div>
 
                   {/* Monaco Editor Container */}
-                  <div className="flex-1 flex flex-col bg-slate-900 rounded-2xl overflow-hidden border-4 border-slate-850 shadow-2xl min-h-0">
+                  <div className="flex-1 flex flex-col bg-slate-900 rounded-2xl overflow-hidden border-4 border-slate-800 shadow-2xl min-h-0">
                     
                     {/* Editor Controller Top Bar */}
                     <div className="bg-slate-800 px-6 py-2.5 flex items-center justify-between flex-shrink-0 border-b border-slate-900">
@@ -694,7 +720,7 @@ export default function ExamClient({
                             value={customInput}
                             onChange={(e) => setCustomInput(e.target.value)}
                             placeholder="Stdin value..."
-                            className="bg-slate-850 text-slate-200 border border-slate-700 rounded px-2 py-0.5 text-[10px] outline-none focus:border-indigo-500 w-32 md:w-44"
+                            className="bg-slate-800 text-slate-200 border border-slate-700 rounded px-2 py-0.5 text-[10px] outline-none focus:border-indigo-500 w-32 md:w-44"
                           />
                         </div>
 
@@ -733,11 +759,11 @@ export default function ExamClient({
                             <div className="text-rose-400 text-xs italic">{executionResult.message}</div>
                           )}
                           {!executionResult.stdout && !executionResult.stderr && !executionResult.compile_output && !executionResult.message && (
-                            <div className="text-slate-650 italic">No output produced.</div>
+                            <div className="text-slate-600 italic">No output produced.</div>
                           )}
                         </div>
                       ) : (
-                        <div className="text-slate-650 italic">Click &quot;Run Code&quot; to inspect standard outputs.</div>
+                        <div className="text-slate-600 italic">Click &quot;Run Code&quot; to inspect standard outputs.</div>
                       )}
                     </div>
                   </div>
@@ -751,7 +777,7 @@ export default function ExamClient({
               <button
                 disabled={currentIdx === 0}
                 onClick={() => handleIdxChange(currentIdx - 1)}
-                className="flex items-center px-6 py-2.5 bg-white border-2 border-slate-100 text-slate-655 font-bold rounded-xl hover:bg-slate-50 transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-sm text-xs"
+                className="flex items-center px-6 py-2.5 bg-white border-2 border-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-all disabled:opacity-30 disabled:cursor-not-allowed shadow-sm text-xs"
               >
                 <ChevronLeft className="w-4 h-4 mr-2" />
                 Previous
@@ -810,8 +836,10 @@ export default function ExamClient({
               </button>
             </div>
             
-            <div className="p-6 border-b border-slate-100 flex-shrink-0 overflow-y-auto no-scrollbar">
-              <div className="grid grid-cols-5 lg:grid-cols-4 gap-2.5 max-h-[400px] lg:max-h-none pr-1">
+            <div className={`p-6 border-b border-slate-100 flex-shrink-0 ${
+              questions.length > 40 ? "overflow-y-auto max-h-[320px]" : "overflow-hidden"
+            }`}>
+              <div className="grid grid-cols-5 lg:grid-cols-4 gap-2.5 pr-1">
                 {questions.map((q, i) => {
                   const isAnswered = submissions[q.id]?.mcqAnswer || submissions[q.id]?.codeAnswer;
                   const isCurrent = currentIdx === i;
@@ -844,7 +872,7 @@ export default function ExamClient({
                   <AlertTriangle className="w-3.5 h-3.5 mr-1 text-rose-500" />
                   Security Status
                 </h4>
-                <div className="text-[11px] font-bold text-rose-755 text-rose-750">
+                <div className="text-[11px] font-bold text-rose-700">
                   Tab Switch Warnings: <span className="underline">{tabSwitches} / 3</span>
                 </div>
                 <p className="text-[9px] text-rose-500 font-medium leading-relaxed">
@@ -855,13 +883,13 @@ export default function ExamClient({
               <div className="p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Map Legend</h4>
                 <div className="space-y-2">
-                  <div className="flex items-center text-[10px] font-bold text-slate-605">
+                  <div className="flex items-center text-[10px] font-bold text-slate-600">
                     <div className="w-2.5 h-2.5 rounded bg-indigo-600 mr-2"></div> Selected
                   </div>
-                  <div className="flex items-center text-[10px] font-bold text-slate-650">
+                  <div className="flex items-center text-[10px] font-bold text-slate-600">
                     <div className="w-2.5 h-2.5 rounded bg-emerald-500 mr-2"></div> Answer Recorded
                   </div>
-                  <div className="flex items-center text-[10px] font-bold text-slate-650">
+                  <div className="flex items-center text-[10px] font-bold text-slate-600">
                     <div className="w-2.5 h-2.5 rounded bg-slate-200 mr-2"></div> Not Answered
                   </div>
                 </div>
@@ -873,6 +901,40 @@ export default function ExamClient({
         </div>
 
       </div>
+
+      {/* Custom Confirmation Modal for Submit Exam */}
+      {showSubmitModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[150] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-2xl p-8 max-w-md w-full text-center space-y-6 animate-in fade-in zoom-in-95 duration-200">
+            <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto border border-indigo-100">
+              <Send className="w-8 h-8 text-indigo-600 animate-pulse" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-xl font-black text-slate-800 tracking-tight">Submit Examination</h2>
+              <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                Are you sure you want to finish the exam? All your answers will be evaluated and submitted. You cannot modify your answers after submitting.
+              </p>
+            </div>
+            <div className="flex gap-4">
+              <button 
+                onClick={() => setShowSubmitModal(false)}
+                className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl active:scale-[0.98] transition-all text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={async () => {
+                  setShowSubmitModal(false);
+                  await performSubmit();
+                }}
+                className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white font-black rounded-xl shadow-lg shadow-green-500/10 hover:shadow-green-500/20 active:scale-[0.98] transition-all text-xs cursor-pointer"
+              >
+                Yes, Submit
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Security Proctored Violation Modal Overlay */}
       {showSecurityOverlay && (
