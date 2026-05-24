@@ -11,10 +11,11 @@ import {
   Send,
   Layers
 } from "lucide-react";
-import { saveSubmission, submitExam, logTabSwitch } from "@/app/actions/exam";
+import { saveSubmission, submitExam, logTabSwitch, updateBlurState } from "@/app/actions/exam";
 import { runCode } from "@/app/actions/judge0";
 import { useRouter } from "next/navigation";
 import Editor from "@monaco-editor/react";
+import { toast } from "sonner";
 
 interface Question {
   id: string;
@@ -37,6 +38,8 @@ interface ExamSession {
   id: string;
   startTime: Date | string | null;
   optionsMapping?: Record<string, string[]> | null;
+  isBlurred?: boolean;
+  tabSwitches?: number;
 }
 
 interface Submission {
@@ -79,7 +82,10 @@ export default function ExamClient({
   });
   const [timeLeft, setTimeLeft] = useState(0);
   const [isFullScreen, setIsFullScreen] = useState(false);
-  const [isBlurred, setIsBlurred] = useState(false);
+  const [isBlurred, setIsBlurred] = useState(session.isBlurred ?? false);
+  const [tabSwitches, setTabSwitches] = useState(session.tabSwitches ?? 0);
+  const [saveState, setSaveState] = useState<"saved" | "saving" | "error">("saved");
+  const activeSavesRef = useRef(0);
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionResult, setExecutionResult] = useState<{
     status?: { id: number; description: string };
@@ -113,10 +119,21 @@ export default function ExamClient({
 
   // Helper to save code answer to database
   const saveCodeToDb = useCallback((qId: string, code: string, lang: string) => {
+    setSaveState("saving");
+    activeSavesRef.current += 1;
     saveSubmission(session.id, qId, {
       codeAnswer: code,
       language: lang,
-    }).catch(err => {
+    })
+    .then(() => {
+      activeSavesRef.current -= 1;
+      if (activeSavesRef.current === 0) {
+        setSaveState("saved");
+      }
+    })
+    .catch(err => {
+      activeSavesRef.current -= 1;
+      setSaveState("error");
       console.error("Failed to save code:", err);
     });
   }, [session.id]);
@@ -143,7 +160,7 @@ export default function ExamClient({
         router.refresh();
       } catch (err) {
         console.error(err);
-        alert("Failed to submit exam. Please check your connection.");
+        toast.error("Failed to submit exam. Please check your connection.");
         setIsSubmitting(false);
       }
     }
@@ -177,11 +194,22 @@ export default function ExamClient({
       
       // Call async save in the background
       const { mcqAnswer, codeAnswer, language } = fullAnswer;
+      setSaveState("saving");
+      activeSavesRef.current += 1;
       saveSubmission(session.id, questionId, {
         mcqAnswer: mcqAnswer ?? undefined,
         codeAnswer: codeAnswer ?? undefined,
         language: language ?? undefined,
-      }).catch(err => {
+      })
+      .then(() => {
+        activeSavesRef.current -= 1;
+        if (activeSavesRef.current === 0) {
+          setSaveState("saved");
+        }
+      })
+      .catch(err => {
+        activeSavesRef.current -= 1;
+        setSaveState("error");
         console.error("Failed to save answer:", err);
       });
 
@@ -216,7 +244,7 @@ export default function ExamClient({
 
   const handleRunCode = async () => {
     if (!editorCode.trim()) {
-      alert("Please write some code first before running.");
+      toast.warning("Please write some code first before running.");
       return;
     }
 
@@ -264,7 +292,17 @@ export default function ExamClient({
       if (document.hidden) {
         setIsBlurred(true);
         try {
-          await logTabSwitch(session.id);
+          const res = await logTabSwitch(session.id);
+          if (res) {
+            setTabSwitches(res.tabSwitches);
+            if (res.status === "FORCE_SUBMITTED") {
+              if (document.fullscreenElement) {
+                document.exitFullscreen();
+              }
+              router.push(`/student/exams/${exam.id}/result`);
+              router.refresh();
+            }
+          }
         } catch (err) {
           console.error("Failed to log tab switch:", err);
         }
@@ -277,7 +315,14 @@ export default function ExamClient({
       if (!isCurrentlyFull) {
         setIsBlurred(true);
         try {
-          await logTabSwitch(session.id);
+          const res = await logTabSwitch(session.id);
+          if (res) {
+            setTabSwitches(res.tabSwitches);
+            if (res.status === "FORCE_SUBMITTED") {
+              router.push(`/student/exams/${exam.id}/result`);
+              router.refresh();
+            }
+          }
         } catch (err) {
           console.error("Failed to log full-screen exit:", err);
         }
@@ -292,12 +337,51 @@ export default function ExamClient({
       e.preventDefault();
     };
 
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "Are you sure you want to exit the exam? Your progress will be saved but this is highly discouraged.";
+      return e.returnValue;
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "F12") {
+        e.preventDefault();
+        toast.error("Developer tools are disabled during the exam.");
+        return;
+      }
+      if (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "J" || e.key === "C" || e.key === "i" || e.key === "j" || e.key === "c")) {
+        e.preventDefault();
+        toast.error("Developer tools are disabled during the exam.");
+        return;
+      }
+      if (e.ctrlKey && (e.key === "U" || e.key === "u")) {
+        e.preventDefault();
+        toast.error("Viewing source is disabled during the exam.");
+        return;
+      }
+      if (e.ctrlKey && (e.key === "S" || e.key === "s")) {
+        e.preventDefault();
+        return;
+      }
+      if (e.ctrlKey && (e.key === "P" || e.key === "p")) {
+        e.preventDefault();
+        return;
+      }
+      if ((e.ctrlKey && (e.key === "R" || e.key === "r")) || e.key === "F5") {
+        e.preventDefault();
+        toast.error("Refreshing the page is disabled. Please navigate using the exam interface.");
+        return;
+      }
+    };
+
     document.addEventListener("visibilitychange", handleVisibilityChange);
     document.addEventListener("fullscreenchange", handleFullScreenChange);
     document.addEventListener("copy", preventClipboard);
     document.addEventListener("paste", preventClipboard);
     document.addEventListener("cut", preventClipboard);
     document.addEventListener("contextmenu", preventContextMenu);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    window.addEventListener("keydown", handleKeyDown);
     
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -306,15 +390,23 @@ export default function ExamClient({
       document.removeEventListener("paste", preventClipboard);
       document.removeEventListener("cut", preventClipboard);
       document.removeEventListener("contextmenu", preventContextMenu);
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [session.id]);
+  }, [session.id, exam.id, router]);
 
   const handleEnterFullScreen = () => {
     const elem = document.documentElement;
     if (elem.requestFullscreen) {
-      elem.requestFullscreen();
-      setIsBlurred(false);
-      setIsFullScreen(true);
+      elem.requestFullscreen()
+        .then(() => {
+          setIsBlurred(false);
+          setIsFullScreen(true);
+          return updateBlurState(session.id, false);
+        })
+        .catch(err => {
+          console.error("Failed to enter fullscreen:", err);
+        });
     }
   };
 
@@ -376,14 +468,30 @@ export default function ExamClient({
             </div>
           </div>
 
-          {/* Top Center: Timer */}
-          <div className={`flex items-center px-4 py-1.5 rounded-xl border-2 font-mono font-bold text-sm ${
-            timeLeft < 300 
-              ? 'border-red-500 bg-red-50 text-red-650 animate-pulse' 
-              : 'border-indigo-100 bg-indigo-50/50 text-indigo-750'
-          }`}>
-            <Clock className="w-4 h-4 mr-1.5 shrink-0" />
-            {formatTime(timeLeft)}
+          {/* Top Center: Timer & Sync Status */}
+          <div className="flex items-center space-x-4">
+            <div className={`flex items-center px-4 py-1.5 rounded-xl border-2 font-mono font-bold text-sm ${
+              timeLeft < 300 
+                ? 'border-red-500 bg-red-50 text-red-650 animate-pulse' 
+                : 'border-indigo-100 bg-indigo-50/50 text-indigo-750'
+            }`}>
+              <Clock className="w-4 h-4 mr-1.5 shrink-0" />
+              {formatTime(timeLeft)}
+            </div>
+
+            {/* Sync status indicator */}
+            <div className={`flex items-center px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all ${
+              saveState === "saved" 
+                ? "bg-emerald-50 border-emerald-100 text-emerald-700" 
+                : saveState === "saving" 
+                  ? "bg-amber-50 border-amber-100 text-amber-700 animate-pulse" 
+                  : "bg-rose-50 border-rose-100 text-rose-700 animate-bounce"
+            }`}>
+              <div className={`w-2 h-2 rounded-full mr-1.5 ${
+                saveState === "saved" ? "bg-emerald-500" : saveState === "saving" ? "bg-amber-500" : "bg-rose-500"
+              }`} />
+              {saveState === "saved" ? "Saved to cloud" : saveState === "saving" ? "Saving..." : "Offline - Error"}
+            </div>
           </div>
 
           {/* Top Right: User Photo + Name / PRN + Finish Button */}
@@ -730,6 +838,20 @@ export default function ExamClient({
             </div>
             
             <div className="flex-1 p-6 space-y-4 overflow-y-auto no-scrollbar">
+              {/* Anti-Cheat Attempts Card */}
+              <div className="p-4 bg-rose-50/50 rounded-2xl border border-rose-100/50 space-y-2">
+                <h4 className="text-[10px] font-black text-rose-500 uppercase tracking-widest flex items-center">
+                  <AlertTriangle className="w-3.5 h-3.5 mr-1 text-rose-500" />
+                  Security Status
+                </h4>
+                <div className="text-[11px] font-bold text-rose-755 text-rose-750">
+                  Tab Switch Warnings: <span className="underline">{tabSwitches} / 3</span>
+                </div>
+                <p className="text-[9px] text-rose-500 font-medium leading-relaxed">
+                  Switching tabs or exiting fullscreen 3 times will result in automatic submission. Remaining: <span className="font-extrabold">{Math.max(0, 3 - tabSwitches)}</span>
+                </p>
+              </div>
+
               <div className="p-4 bg-slate-50/50 rounded-2xl border border-slate-100">
                 <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Map Legend</h4>
                 <div className="space-y-2">

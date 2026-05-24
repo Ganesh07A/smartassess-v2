@@ -403,13 +403,17 @@ export async function startExamSession(examId: string) {
   if (!examSession) throw new Error("Failed to start exam session.");
 
   // Trigger Pusher event for the teacher's live dashboard
-  await pusherServer.trigger(`exam-${examId}`, "student-joined", {
-    studentId,
-    studentName: examSession.student.name,
-    prn: examSession.student.prn,
-    startTime: examSession.startTime,
-    ipAddress,
-  });
+  try {
+    await pusherServer.trigger(`exam-${examId}`, "student-joined", {
+      studentId,
+      studentName: examSession.student.name,
+      prn: examSession.student.prn,
+      startTime: examSession.startTime,
+      ipAddress,
+    });
+  } catch (err) {
+    console.error("Pusher student-joined event failed:", err);
+  }
 
   return examSession;
 }
@@ -454,6 +458,16 @@ export async function saveSubmission(
     throw new Error("Exam has ended");
   }
 
+  // Check if session duration has expired (with 1-minute grace period)
+  if (examSession.startTime) {
+    const elapsedMinutes = (now.getTime() - new Date(examSession.startTime).getTime()) / (60 * 1000);
+    const gracePeriodMinutes = 1.0;
+    if (elapsedMinutes > examSession.exam.duration + gracePeriodMinutes) {
+      await submitExam(sessionId);
+      throw new Error("Exam duration has expired. Your answers have been submitted.");
+    }
+  }
+
   // Upsert submission
   const submission = await prisma.submission.upsert({
     where: {
@@ -483,10 +497,14 @@ export async function saveSubmission(
   });
 
   // Trigger Pusher event
-  await pusherServer.trigger(`exam-${examSession.examId}`, "answer-saved", {
-    studentId: session.user.id,
-    answeredCount,
-  });
+  try {
+    await pusherServer.trigger(`exam-${examSession.examId}`, "answer-saved", {
+      studentId: session.user.id,
+      answeredCount,
+    });
+  } catch (err) {
+    console.error("Pusher answer-saved event failed:", err);
+  }
 
   return submission;
 }
@@ -494,7 +512,7 @@ export async function saveSubmission(
 /**
  * Marks an exam session as completed and calculates scores for MCQs and Coding questions.
  */
-export async function submitExam(sessionId: string) {
+export async function submitExam(sessionId: string, status: "COMPLETED" | "FORCE_SUBMITTED" = "COMPLETED") {
   const session = await getServerSession(authOptions);
 
   if (!session || session.user.role !== "STUDENT") {
@@ -524,7 +542,7 @@ export async function submitExam(sessionId: string) {
     throw new Error("Session not found");
   }
 
-  if (examSession.status === "COMPLETED") {
+  if (examSession.status === "COMPLETED" || examSession.status === "FORCE_SUBMITTED") {
     return examSession;
   }
 
@@ -572,16 +590,21 @@ export async function submitExam(sessionId: string) {
     await tx.studentExamSession.update({
       where: { id: sessionId },
       data: {
-        status: "COMPLETED",
+        status,
         endTime: new Date(),
       }
     });
   });
 
   // Trigger Pusher event
-  await pusherServer.trigger(`exam-${examSession.examId}`, "student-submitted", {
-    studentId: session.user.id,
-  });
+  try {
+    await pusherServer.trigger(`exam-${examSession.examId}`, "student-submitted", {
+      studentId: session.user.id,
+      status,
+    });
+  } catch (err) {
+    console.error("Pusher student-submitted event failed:", err);
+  }
 
   revalidatePath("/student");
   revalidatePath(`/student/exams/${examSession.examId}`);
@@ -596,6 +619,11 @@ export async function submitExam(sessionId: string) {
     // as certificates can be generated later manually too.
     console.log("Auto-certificate issuance skipped or failed:", (err as Error).message);
   }
+
+  const updatedSession = await prisma.studentExamSession.findUnique({
+    where: { id: sessionId }
+  });
+  return updatedSession;
 }
 
 /**
@@ -677,7 +705,7 @@ export async function logTabSwitch(sessionId: string) {
     throw new Error("Unauthorized");
   }
 
-  const updatedSession = await prisma.studentExamSession.update({
+  let updatedSession = await prisma.studentExamSession.update({
     where: { 
       id: sessionId,
       studentId: session.user.id
@@ -685,7 +713,8 @@ export async function logTabSwitch(sessionId: string) {
     data: {
       tabSwitches: {
         increment: 1
-      }
+      },
+      isBlurred: true
     },
     include: {
       student: {
@@ -703,11 +732,49 @@ export async function logTabSwitch(sessionId: string) {
   });
 
   // Trigger Pusher event for the teacher's live dashboard
-  await pusherServer.trigger(`exam-${updatedSession.exam.id}`, "tab-switch", {
-    studentId: session.user.id,
-    studentName: updatedSession.student.name,
-    prn: updatedSession.student.prn,
-    totalSwitches: updatedSession.tabSwitches,
+  try {
+    await pusherServer.trigger(`exam-${updatedSession.exam.id}`, "tab-switch", {
+      studentId: session.user.id,
+      studentName: updatedSession.student.name,
+      prn: updatedSession.student.prn,
+      totalSwitches: updatedSession.tabSwitches,
+    });
+  } catch (err) {
+    console.error("Pusher tab-switch event failed:", err);
+  }
+
+  const MAX_TAB_SWITCHES = 3;
+  if (updatedSession.tabSwitches >= MAX_TAB_SWITCHES) {
+    const finalSession = await submitExam(sessionId, "FORCE_SUBMITTED");
+    if (finalSession) {
+      return {
+        ...updatedSession,
+        status: finalSession.status,
+      };
+    }
+  }
+
+  return updatedSession;
+}
+
+/**
+ * Resets or sets the blur state on a student session.
+ */
+export async function updateBlurState(sessionId: string, isBlurred: boolean) {
+  const session = await getServerSession(authOptions);
+
+  if (!session || session.user.role !== "STUDENT") {
+    throw new Error("Unauthorized");
+  }
+
+  const updatedSession = await prisma.studentExamSession.update({
+    where: { 
+      id: sessionId,
+      studentId: session.user.id
+    },
+    data: {
+      isBlurred
+    }
   });
 
   return updatedSession;

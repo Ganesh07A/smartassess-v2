@@ -16,6 +16,7 @@ import {
   Trophy,
   AlertCircle
 } from "lucide-react";
+import LocalTime from "./local-time";
 
 export const dynamic = 'force-dynamic';
 
@@ -202,7 +203,9 @@ export default async function StudentDashboard({
                         ) : isUpcoming ? (
                           <div className="text-right">
                             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Starts at</p>
-                            <p className="text-sm font-black text-gray-900">{startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                            <p className="text-sm font-black text-gray-900">
+                              <LocalTime dateString={exam.startTime} />
+                            </p>
                           </div>
                         ) : (
                           <button disabled className="px-6 py-2.5 bg-gray-50 text-gray-300 text-sm font-bold rounded-xl cursor-not-allowed">
