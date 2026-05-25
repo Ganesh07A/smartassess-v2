@@ -26,7 +26,7 @@ export default function InteractiveCard() {
   return (
     <motion.div
       whileHover={{ scale: 1.05 }}
-      className="bg-white/80 backdrop-blur-xl p-6 rounded-2xl shadow-xl w-[320px] border border-gray-100"
+      className="bg-white/95 backdrop-blur-xl p-6 rounded-2xl shadow-xl w-[320px] border border-gray-100 text-gray-900"
     >
       <h3 className="font-semibold text-gray-900 mb-4 text-sm">
         What is the time complexity of Binary Search?
@@ -37,12 +37,12 @@ export default function InteractiveCard() {
           <button
             key={opt.id}
             onClick={() => handleSelect(i)}
-            className={`w-full text-left px-4 py-3 rounded-xl border transition-all duration-200 ${
+            className={`w-full text-left px-4 py-3 rounded-xl border transition-all duration-200 text-gray-900 ${
               selected === i
                 ? opt.correct
-                  ? "bg-green-50 border-green-500 text-green-700"
-                  : "bg-red-50 border-red-500 text-red-700"
-                : "bg-white border-gray-200 hover:border-blue-500 hover:bg-blue-50"
+                  ? "bg-green-50 border-green-500 text-green-700 font-semibold"
+                  : "bg-red-50 border-red-500 text-red-700 font-semibold"
+                : "bg-white border-gray-200 hover:border-blue-500 hover:bg-blue-50 hover:text-blue-600"
             }`}
           >
             <span className="text-sm font-medium">{opt.text}</span>

@@ -33,7 +33,7 @@ export async function issueCertificate(examId: string, studentId: string) {
     }
   });
 
-  if (!examSession || examSession.status !== "COMPLETED") {
+  if (!examSession || (examSession.status !== "COMPLETED" && examSession.status !== "FORCE_SUBMITTED")) {
     throw new Error("Exam session not found or not completed.");
   }
 

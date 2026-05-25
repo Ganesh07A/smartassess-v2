@@ -18,15 +18,34 @@ export const dynamic = 'force-dynamic';
 export default async function TeacherDashboard() {
   const session = await getServerSession(authOptions);
   
+  // Fetch teacher's department
+  const teacher = session?.user.id
+    ? await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { department: true }
+      })
+    : null;
+  const teacherDept = teacher?.department;
+
+  const batchFilter = {
+    OR: [
+      { teacherId: session?.user.id },
+      ...(teacherDept ? [{ 
+        department: teacherDept,
+        teacherId: null
+      }] : [])
+    ]
+  };
+
   // Fetch some basic stats
   const [batchesCount, examsCount, totalSubmissions, cheatAlertsAgg] = await Promise.all([
-    prisma.batch.count({ where: { teacherId: session?.user.id } }),
-    prisma.exam.count({ where: { batch: { teacherId: session?.user.id } } }),
+    prisma.batch.count({ where: batchFilter }),
+    prisma.exam.count({ where: { batch: batchFilter } }),
     prisma.submission.count({ 
-      where: { session: { exam: { batch: { teacherId: session?.user.id } } } } 
+      where: { session: { exam: { batch: batchFilter } } } 
     }),
     prisma.studentExamSession.aggregate({
-      where: { exam: { batch: { teacherId: session?.user.id } } },
+      where: { exam: { batch: batchFilter } },
       _sum: { tabSwitches: true }
     })
   ]);
@@ -45,7 +64,7 @@ export default async function TeacherDashboard() {
   // Fetch Recent/Active Exams
   const recentExams = await prisma.exam.findMany({
     where: { 
-      batch: { teacherId: session?.user.id },
+      batch: batchFilter,
       startTime: { lte: now }
     },
     orderBy: { startTime: 'desc' },
@@ -59,7 +78,7 @@ export default async function TeacherDashboard() {
   // Fetch Upcoming Exams
   const upcomingExams = await prisma.exam.findMany({
     where: { 
-      batch: { teacherId: session?.user.id },
+      batch: batchFilter,
       startTime: { gt: now }
     },
     orderBy: { startTime: 'asc' },

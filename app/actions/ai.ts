@@ -57,25 +57,29 @@ export async function generateAIQuestionsInternal(prompt: string, count: number 
     
     CRITICAL RULES:
     1. You MUST generate exactly ${count} questions. No more, no less.
-    2. Return the result ONLY as a valid JSON array of objects.
-    3. Each object must follow this structure:
+    2. Return the result ONLY as a valid JSON object containing a "questions" array field.
+    3. The object must follow this structure (replace placeholders with actual values):
     {
-      "type": "MCQ",
-      "content": "The question text",
-      "options": {
-        "A": "Option 1",
-        "B": "Option 2",
-        "C": "Option 3",
-        "D": "Option 4"
-      },
-      "correctAnswer": "A",
-      "points": 1
+      "questions": [
+        {
+          "type": "MCQ",
+          "content": "What is the capital of France?",
+          "options": {
+            "A": "Paris",
+            "B": "London",
+            "C": "Berlin",
+            "D": "Rome"
+          },
+          "correctAnswer": "A",
+          "points": 1
+        }
+      ]
     }
     
-    4. Ensure the questions are technically accurate and challenging.
-    5. Provide 4 distinct options for each question.
-    6. The correctAnswer must be one of "A", "B", "C", or "D".
-    7. Return ONLY the raw JSON array. Do not include markdown code blocks, explanations, or any other text.
+    4. Ensure the questions are technically accurate, challenging, and directly related to the provided content.
+    5. Provide 4 distinct, plausible options for each question. The options must be actual answers/choices relevant to the question, NOT placeholders like "Option A" or "Option 1".
+    6. The correctAnswer must be the key (A, B, C, or D) of the actual correct choice among the options. Vary the correct answer option (don't make it always 'A').
+    7. Return ONLY the raw JSON. Do not include markdown code blocks, explanations, or any other text.
   `;
 
   try {
@@ -87,9 +91,10 @@ export async function generateAIQuestionsInternal(prompt: string, count: number 
     try {
       // Try parsing directly
       const parsed = JSON.parse(text);
-      if (Array.isArray(parsed)) return parsed;
       if (typeof parsed === 'object' && parsed !== null) {
-        // If it's a single object, wrap it in an array
+        if (Array.isArray(parsed)) return parsed;
+        const arrayField = Object.values(parsed).find(val => Array.isArray(val));
+        if (arrayField) return arrayField;
         return [parsed];
       }
       throw new Error("AI did not return a valid list of questions.");
@@ -104,12 +109,40 @@ export async function generateAIQuestionsInternal(prompt: string, count: number 
           const parsed = JSON.parse(jsonString);
           return Array.isArray(parsed) ? parsed : [parsed];
         } catch {
+          // If bracket parsing failed, check for a wrapped curly brace JSON object
+          const startBrace = text.indexOf("{");
+          const endBrace = text.lastIndexOf("}") + 1;
+          if (startBrace !== -1 && endBrace > startBrace) {
+            try {
+              const parsedBrace = JSON.parse(text.substring(startBrace, endBrace));
+              const arrayField = Object.values(parsedBrace).find(val => Array.isArray(val));
+              if (arrayField) return arrayField;
+              return [parsedBrace];
+            } catch {
+              console.error("AI JSON Parse Error. Response was:", text);
+              throw new Error("The AI generated an invalid question set. Please try again.");
+            }
+          }
           console.error("AI JSON Parse Error. Response was:", text);
           throw new Error("The AI generated an invalid question set. Please try again.");
         }
       }
       
-      console.error("AI Response did not contain a valid JSON array:", text);
+      const startBrace = text.indexOf("{");
+      const endBrace = text.lastIndexOf("}") + 1;
+      if (startBrace !== -1 && endBrace > startBrace) {
+        try {
+          const parsedBrace = JSON.parse(text.substring(startBrace, endBrace));
+          const arrayField = Object.values(parsedBrace).find(val => Array.isArray(val));
+          if (arrayField) return arrayField;
+          return [parsedBrace];
+        } catch {
+          console.error("AI JSON Parse Error. Response was:", text);
+          throw new Error("The AI generated an invalid question set. Please try again.");
+        }
+      }
+      
+      console.error("AI Response did not contain a valid JSON format:", text);
       throw new Error("AI returned an invalid format. Please try again.");
     }
   } catch (error: unknown) {

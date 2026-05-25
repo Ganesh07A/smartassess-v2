@@ -119,9 +119,26 @@ export async function deleteBatch(id: string) {
     throw new Error("Unauthorized");
   }
 
-  // Ensure the teacher owns this batch
-  const batch = await prisma.batch.findUnique({
-    where: { id, teacherId: session.user.id },
+  // Fetch teacher's department
+  const teacher = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { department: true }
+  });
+
+  const teacherDept = teacher?.department;
+
+  // Ensure the teacher owns this batch or it's a global department batch for their department
+  const batch = await prisma.batch.findFirst({
+    where: {
+      id,
+      OR: [
+        { teacherId: session.user.id },
+        ...(teacherDept ? [{ 
+          department: teacherDept,
+          teacherId: null
+        }] : [])
+      ]
+    },
   });
 
   if (!batch) {
@@ -142,8 +159,25 @@ export async function getBatchDetails(id: string) {
     throw new Error("Unauthorized");
   }
 
-  return await prisma.batch.findUnique({
-    where: { id, teacherId: session.user.id },
+  // Fetch teacher's department
+  const teacher = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { department: true }
+  });
+
+  const teacherDept = teacher?.department;
+
+  return await prisma.batch.findFirst({
+    where: {
+      id,
+      OR: [
+        { teacherId: session.user.id },
+        ...(teacherDept ? [{ 
+          department: teacherDept,
+          teacherId: null
+        }] : [])
+      ]
+    },
     include: {
       students: {
         select: {
@@ -179,8 +213,34 @@ export async function addStudentToBatch(batchId: string, emailOrPrn: string) {
     throw new Error("Student not found");
   }
 
+  // Fetch teacher's department
+  const teacher = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { department: true }
+  });
+
+  const teacherDept = teacher?.department;
+
+  // Verify batch permission
+  const batch = await prisma.batch.findFirst({
+    where: {
+      id: batchId,
+      OR: [
+        { teacherId: session.user.id },
+        ...(teacherDept ? [{ 
+          department: teacherDept,
+          teacherId: null
+        }] : [])
+      ]
+    }
+  });
+
+  if (!batch) {
+    throw new Error("Batch not found or unauthorized");
+  }
+
   await prisma.batch.update({
-    where: { id: batchId, teacherId: session.user.id },
+    where: { id: batchId },
     data: {
       students: {
         connect: { id: student.id }
@@ -198,8 +258,34 @@ export async function removeStudentFromBatch(batchId: string, studentId: string)
     throw new Error("Unauthorized");
   }
 
+  // Fetch teacher's department
+  const teacher = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { department: true }
+  });
+
+  const teacherDept = teacher?.department;
+
+  // Verify batch permission
+  const batch = await prisma.batch.findFirst({
+    where: {
+      id: batchId,
+      OR: [
+        { teacherId: session.user.id },
+        ...(teacherDept ? [{ 
+          department: teacherDept,
+          teacherId: null
+        }] : [])
+      ]
+    }
+  });
+
+  if (!batch) {
+    throw new Error("Batch not found or unauthorized");
+  }
+
   await prisma.batch.update({
-    where: { id: batchId, teacherId: session.user.id },
+    where: { id: batchId },
     data: {
       students: {
         disconnect: { id: studentId }

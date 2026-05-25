@@ -55,7 +55,7 @@ export default async function ExamResultPage({
     getCertificate(id, session.user.id)
   ]);
 
-  if (!examSession || examSession.status !== "COMPLETED") {
+  if (!examSession || (examSession.status !== "COMPLETED" && examSession.status !== "FORCE_SUBMITTED")) {
     redirect(`/student/exams/${id}`);
   }
 
@@ -166,7 +166,7 @@ export default async function ExamResultPage({
                             <div className="p-4 rounded-xl border bg-blue-50 border-blue-100">
                               <div className="text-[10px] font-black uppercase tracking-widest mb-1 text-blue-400">Correct Answer</div>
                               <div className="font-bold text-blue-700">
-                                {q.correctAnswer}: ${(q.options as Record<string, string>)?.[q.correctAnswer as string] || "N/A"}
+                                {q.correctAnswer}: {(q.options as Record<string, string>)?.[q.correctAnswer as string] || "N/A"}
                               </div>
                             </div>
                           </div>

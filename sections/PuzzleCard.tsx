@@ -38,9 +38,9 @@ export default function PuzzleCard() {
   return (
     <motion.div
       whileHover={{ scale: 1.05 }}
-      className="bg-white/70 backdrop-blur-xl p-6 rounded-2xl shadow-xl w-[320px]"
+      className="bg-white/95 backdrop-blur-xl p-6 rounded-2xl shadow-xl w-[320px] text-gray-900 border border-gray-100"
     >
-      <h3 className="font-semibold">
+      <h3 className="font-semibold text-gray-900">
         Arrange steps of a program:
       </h3>
 
@@ -48,13 +48,13 @@ export default function PuzzleCard() {
         {items.map((item, i) => (
           <div
             key={i}
-            className="flex justify-between items-center px-4 py-2 bg-gray-100 rounded-lg"
+            className="flex justify-between items-center px-4 py-2 bg-gray-100 rounded-lg text-gray-800 border border-gray-200/50"
           >
-            <span>{item}</span>
+            <span className="text-sm font-semibold">{item}</span>
 
-            <div className="flex gap-2">
-              <button onClick={() => moveItem(i, "up")}>⬆</button>
-              <button onClick={() => moveItem(i, "down")}>⬇</button>
+            <div className="flex gap-2 text-gray-600 font-bold">
+              <button onClick={() => moveItem(i, "up")} className="hover:text-blue-600 transition-colors p-1">⬆</button>
+              <button onClick={() => moveItem(i, "down")} className="hover:text-blue-600 transition-colors p-1">⬇</button>
             </div>
           </div>
         ))}
@@ -62,13 +62,13 @@ export default function PuzzleCard() {
 
       <button
         onClick={checkAnswer}
-        className="mt-4 w-full bg-green-500 text-white py-2 rounded-lg"
+        className="mt-4 w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 rounded-lg transition-colors"
       >
         Check
       </button>
 
       {result && (
-        <p className="mt-3 text-sm font-medium">{result}</p>
+        <p className="mt-3 text-sm font-semibold text-center text-gray-800">{result}</p>
       )}
     </motion.div>
   );

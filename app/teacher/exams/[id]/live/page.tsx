@@ -20,10 +20,27 @@ export default async function LiveMonitorPage({
     redirect("/login");
   }
 
-  const exam = await prisma.exam.findUnique({
+  // Fetch teacher's department
+  const teacher = session?.user.id
+    ? await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { department: true }
+      })
+    : null;
+  const teacherDept = teacher?.department;
+
+  const exam = await prisma.exam.findFirst({
     where: { 
       id,
-      batch: { teacherId: session.user.id }
+      batch: {
+        OR: [
+          { teacherId: session.user.id },
+          ...(teacherDept ? [{ 
+            department: teacherDept,
+            teacherId: null
+          }] : [])
+        ]
+      }
     },
     include: {
       batch: true,

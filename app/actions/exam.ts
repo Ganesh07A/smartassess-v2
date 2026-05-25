@@ -143,11 +143,26 @@ export async function removeQuestionFromExam(examId: string, questionId: string)
     throw new Error("Unauthorized");
   }
 
-  // Ensure the teacher owns the exam this question belongs to
-  const exam = await prisma.exam.findUnique({
+  // Fetch teacher's department
+  const teacher = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { department: true }
+  });
+  const teacherDept = teacher?.department;
+
+  // Ensure the teacher owns the exam this question belongs to or it is a department exam
+  const exam = await prisma.exam.findFirst({
     where: { 
       id: examId,
-      batch: { teacherId: session.user.id }
+      batch: {
+        OR: [
+          { teacherId: session.user.id },
+          ...(teacherDept ? [{ 
+            department: teacherDept,
+            teacherId: null
+          }] : [])
+        ]
+      }
     },
   });
 
@@ -187,11 +202,26 @@ export async function updateQuestion(
     throw new Error("Unauthorized");
   }
 
-  // Ensure the teacher owns the exam
-  const exam = await prisma.exam.findUnique({
+  // Fetch teacher's department
+  const teacher = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { department: true }
+  });
+  const teacherDept = teacher?.department;
+
+  // Ensure the teacher owns the exam or is in the same department for global exams
+  const exam = await prisma.exam.findFirst({
     where: { 
       id: examId,
-      batch: { teacherId: session.user.id }
+      batch: {
+        OR: [
+          { teacherId: session.user.id },
+          ...(teacherDept ? [{ 
+            department: teacherDept,
+            teacherId: null
+          }] : [])
+        ]
+      }
     },
   });
 
@@ -239,10 +269,27 @@ export async function getExamResults(examId: string) {
     throw new Error("Unauthorized");
   }
 
+  // Fetch teacher's department
+  const teacher = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { department: true }
+  });
+  const teacherDept = teacher?.department;
+
   const results = await prisma.studentExamSession.findMany({
     where: {
       examId,
-      exam: { batch: { teacherId: session.user.id } }
+      exam: {
+        batch: {
+          OR: [
+            { teacherId: session.user.id },
+            ...(teacherDept ? [{ 
+              department: teacherDept,
+              teacherId: null
+            }] : [])
+          ]
+        }
+      }
     },
     include: {
       student: {
@@ -548,25 +595,27 @@ export async function submitExam(sessionId: string, status: "COMPLETED" | "FORCE
 
   const { evaluateCode } = await import("./judge0");
 
-  // Calculate scores for each submission
-  await prisma.$transaction(async (tx) => {
-    for (const submission of examSession.submissions) {
-      const examQuestion = examSession.exam.questions.find(
-        eq => eq.questionId === submission.questionId
-      );
-      
-      if (!examQuestion) continue;
+  // 1. Evaluate submissions OUTSIDE the database transaction
+  const updates: { submissionId: string; isCorrect: boolean; pointsAwarded: number }[] = [];
 
-      const question = examQuestion.question;
-      let isCorrect = false;
-      let pointsAwarded = 0;
+  for (const submission of examSession.submissions) {
+    const examQuestion = examSession.exam.questions.find(
+      eq => eq.questionId === submission.questionId
+    );
+    
+    if (!examQuestion) continue;
 
-      if (question.type === "MCQ") {
-        isCorrect = submission.mcqAnswer === question.correctAnswer;
-        pointsAwarded = isCorrect ? examQuestion.points : 0;
-      } else if (question.type === "CODING") {
-        const testCases = question.testCases as { input: string; output: string }[];
-        if (testCases && testCases.length > 0 && submission.codeAnswer) {
+    const question = examQuestion.question;
+    let isCorrect = false;
+    let pointsAwarded = 0;
+
+    if (question.type === "MCQ") {
+      isCorrect = submission.mcqAnswer === question.correctAnswer;
+      pointsAwarded = isCorrect ? examQuestion.points : 0;
+    } else if (question.type === "CODING") {
+      const testCases = question.testCases as { input: string; output: string }[];
+      if (testCases && testCases.length > 0 && submission.codeAnswer) {
+        try {
           const evalResult = await evaluateCode(
             submission.codeAnswer, 
             submission.language || "python", 
@@ -574,26 +623,47 @@ export async function submitExam(sessionId: string, status: "COMPLETED" | "FORCE
           );
           isCorrect = evalResult.isCorrect;
           // Partial points based on passed test cases
-          pointsAwarded = (evalResult.passed / evalResult.total) * examQuestion.points;
+          pointsAwarded = (evalResult.passed / (evalResult.total || 1)) * examQuestion.points;
+        } catch (evalErr) {
+          console.error(`Failed to evaluate code for submission ${submission.id}:`, evalErr);
+          // Default to 0 points / incorrect on API or network evaluation failure rather than blocking submit
+          isCorrect = false;
+          pointsAwarded = 0;
         }
       }
-
-      await tx.submission.update({
-        where: { id: submission.id },
-        data: {
-          isCorrect,
-          pointsAwarded,
-        }
-      });
     }
 
-    await tx.studentExamSession.update({
-      where: { id: sessionId },
-      data: {
-        status,
-        endTime: new Date(),
-      }
+    updates.push({
+      submissionId: submission.id,
+      isCorrect,
+      pointsAwarded,
     });
+  }
+
+  // 2. Perform fast database updates in batches of 10 to prevent connection pool exhaustion and transaction timeouts
+  const batchSize = 10;
+  for (let i = 0; i < updates.length; i += batchSize) {
+    const batch = updates.slice(i, i + batchSize);
+    await Promise.all(
+      batch.map(update =>
+        prisma.submission.update({
+          where: { id: update.submissionId },
+          data: {
+            isCorrect: update.isCorrect,
+            pointsAwarded: update.pointsAwarded,
+          }
+        })
+      )
+    );
+  }
+
+  // 3. Update the student exam session status
+  await prisma.studentExamSession.update({
+    where: { id: sessionId },
+    data: {
+      status,
+      endTime: new Date(),
+    }
   });
 
   // Trigger Pusher event
@@ -636,8 +706,26 @@ export async function getExamAnalytics(examId: string) {
     throw new Error("Unauthorized");
   }
 
-  const exam = await prisma.exam.findUnique({
-    where: { id: examId },
+  // Fetch teacher's department
+  const teacher = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { department: true }
+  });
+  const teacherDept = teacher?.department;
+
+  const exam = await prisma.exam.findFirst({
+    where: { 
+      id: examId,
+      batch: {
+        OR: [
+          { teacherId: session.user.id },
+          ...(teacherDept ? [{ 
+            department: teacherDept,
+            teacherId: null
+          }] : [])
+        ]
+      }
+    },
     include: {
       questions: {
         include: {
@@ -645,7 +733,9 @@ export async function getExamAnalytics(examId: string) {
         }
       },
       sessions: {
-        where: { status: "COMPLETED" },
+        where: {
+          status: { in: ["COMPLETED", "FORCE_SUBMITTED"] }
+        },
         include: {
           submissions: true
         }
@@ -653,7 +743,7 @@ export async function getExamAnalytics(examId: string) {
     }
   });
 
-  if (!exam) throw new Error("Exam not found");
+  if (!exam) throw new Error("Exam not found or unauthorized");
 
   const totalCompleted = exam.sessions.length;
   
@@ -790,11 +880,26 @@ export async function duplicateExam(examId: string, targetBatchId?: string) {
     throw new Error("Unauthorized");
   }
 
+  // Fetch teacher's department
+  const teacher = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { department: true }
+  });
+  const teacherDept = teacher?.department;
+
   // Fetch the source exam and its questions
-  const sourceExam = await prisma.exam.findUnique({
+  const sourceExam = await prisma.exam.findFirst({
     where: { 
       id: examId,
-      batch: { teacherId: session.user.id }
+      batch: {
+        OR: [
+          { teacherId: session.user.id },
+          ...(teacherDept ? [{ 
+            department: teacherDept,
+            teacherId: null
+          }] : [])
+        ]
+      }
     },
     include: {
       questions: true
@@ -841,11 +946,26 @@ export async function publishExam(examId: string) {
     throw new Error("Unauthorized");
   }
 
+  // Fetch teacher's department
+  const teacher = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { department: true }
+  });
+  const teacherDept = teacher?.department;
+
   // Verify ownership of the exam before publishing
-  const exam = await prisma.exam.findUnique({
+  const exam = await prisma.exam.findFirst({
     where: { 
       id: examId,
-      batch: { teacherId: session.user.id }
+      batch: {
+        OR: [
+          { teacherId: session.user.id },
+          ...(teacherDept ? [{ 
+            department: teacherDept,
+            teacherId: null
+          }] : [])
+        ]
+      }
     },
   });
 

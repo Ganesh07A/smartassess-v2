@@ -30,75 +30,186 @@ export default function CertificateDownloader({
 
   const generatePDF = () => {
     setIsGenerating(true);
-    try {
-      const doc = new jsPDF({
-        orientation: "landscape",
-        unit: "mm",
-        format: "a4",
-      });
 
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
+    const proceedWithPDF = (logoImg?: HTMLImageElement) => {
+      try {
+        const doc = new jsPDF({
+          orientation: "landscape",
+          unit: "mm",
+          format: "a4",
+        });
 
-      // Background / Border
-      doc.setDrawColor(30, 64, 175);
-      doc.setLineWidth(2);
-      doc.rect(5, 5, pageWidth - 10, pageHeight - 10);
-      doc.setLineWidth(0.5);
-      doc.rect(7, 7, pageWidth - 14, pageHeight - 14);
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
 
-      // Header
-      doc.setFontSize(40);
-      doc.setTextColor(30, 64, 175);
-      doc.text("SmartAssess", pageWidth / 2, 40, { align: "center" });
-      
-      doc.setFontSize(20);
-      doc.setTextColor(100);
-      doc.text("CERTIFICATE OF COMPLETION", pageWidth / 2, 55, { align: "center" });
+        // 1. Off-white/cream vintage background
+        doc.setFillColor(253, 252, 248);
+        doc.rect(0, 0, pageWidth, pageHeight, "F");
 
-      // Body
-      doc.setFontSize(16);
-      doc.setTextColor(0);
-      doc.text("This is to certify that", pageWidth / 2, 80, { align: "center" });
+        // 2. Thick Outer Navy Border
+        doc.setDrawColor(15, 32, 67);
+        doc.setLineWidth(4);
+        doc.roundedRect(8, 8, pageWidth - 16, pageHeight - 16, 6, 6, "S");
 
-      doc.setFontSize(30);
-      doc.setTextColor(30, 64, 175);
-      doc.text(student.name || "N/A", pageWidth / 2, 95, { align: "center" });
+        // 3. Thin Gold Inner Border
+        doc.setDrawColor(197, 160, 89);
+        doc.setLineWidth(1);
+        doc.roundedRect(12, 12, pageWidth - 24, pageHeight - 24, 5, 5, "S");
 
-      doc.setFontSize(16);
-      doc.setTextColor(0);
-      doc.text(`has successfully completed the examination`, pageWidth / 2, 110, { align: "center" });
+        // 4. Elegant Corner Accents
+        doc.setDrawColor(197, 160, 89);
+        doc.setLineWidth(1.5);
+        
+        // Top Left corner lines
+        doc.line(16, 22, 22, 22);
+        doc.line(22, 16, 22, 22);
+        
+        // Top Right corner lines
+        doc.line(pageWidth - 16, 22, pageWidth - 22, 22);
+        doc.line(pageWidth - 22, 16, pageWidth - 22, 22);
+        
+        // Bottom Left corner lines
+        doc.line(16, pageHeight - 22, 22, pageHeight - 22);
+        doc.line(22, pageHeight - 16, 22, pageHeight - 22);
+        
+        // Bottom Right corner lines
+        doc.line(pageWidth - 16, pageHeight - 22, pageWidth - 22, pageHeight - 22);
+        doc.line(pageWidth - 22, pageHeight - 16, pageWidth - 22, pageHeight - 22);
 
-      doc.setFontSize(22);
-      doc.setTextColor(30, 64, 175);
-      doc.text(exam.title, pageWidth / 2, 125, { align: "center" });
+        // 5. Official SmartAssess Logo in the Top Center
+        if (logoImg) {
+          // Embed logo directly without any border drawn around it, sizing it to 26x26mm
+          doc.addImage(logoImg, "PNG", pageWidth / 2 - 13, 19, 26, 26);
+        } else {
+          // Fallback to old gold/navy circle badge
+          doc.setFillColor(197, 160, 89);
+          doc.circle(pageWidth / 2, 32, 10, "F");
+          doc.setFillColor(15, 32, 67);
+          doc.circle(pageWidth / 2, 32, 8.5, "F");
+          doc.setTextColor(197, 160, 89);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(13);
+          doc.text("S", pageWidth / 2, 36.5, { align: "center" });
+        }
 
-      doc.setFontSize(14);
-      doc.setTextColor(100);
-      doc.text(`Issued on ${new Date(certificate.issueDate).toLocaleDateString()}`, pageWidth / 2, 140, { align: "center" });
-      
-      if (certificate.grade) {
-        doc.setFontSize(18);
-        doc.setTextColor(0);
-        doc.text(`Grade: ${certificate.grade}`, pageWidth / 2, 155, { align: "center" });
+        // 6. Header Typography
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(15, 32, 67);
+        doc.setFontSize(10);
+        doc.text("SMARTASSESS PLATFORM", pageWidth / 2, 50, { align: "center" });
+
+        doc.setFont("times", "bolditalic");
+        doc.setTextColor(197, 160, 89);
+        doc.setFontSize(26);
+        doc.text("Certificate of Achievement", pageWidth / 2, 64, { align: "center" });
+
+        // 7. Recipient Info
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(80, 80, 80);
+        doc.setFontSize(11);
+        doc.text("THIS CERTIFICATE IS PROUDLY PRESENTED TO", pageWidth / 2, 78, { align: "center" });
+
+        doc.setFont("times", "bold");
+        doc.setTextColor(15, 32, 67);
+        doc.setFontSize(32);
+        doc.text(student.name || "N/A", pageWidth / 2, 94, { align: "center" });
+
+        // Gold line under name
+        doc.setDrawColor(197, 160, 89);
+        doc.setLineWidth(0.6);
+        doc.line(pageWidth / 2 - 50, 98, pageWidth / 2 + 50, 98);
+
+        // 8. Completion Statement
+        doc.setFont("times", "italic");
+        doc.setTextColor(80, 80, 80);
+        doc.setFontSize(13);
+        doc.text("for successfully completing the examination and demonstrating proficiency in", pageWidth / 2, 108, { align: "center" });
+
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(15, 32, 67);
+        doc.setFontSize(20);
+        doc.text(exam.title, pageWidth / 2, 120, { align: "center" });
+
+        // 9. Grade Details
+        if (certificate.grade) {
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(80, 80, 80);
+          doc.setFontSize(10);
+          doc.text("with an overall assessment grade of", pageWidth / 2, 132, { align: "center" });
+
+          doc.setFont("helvetica", "bold");
+          doc.setTextColor(197, 160, 89);
+          doc.setFontSize(13);
+          doc.text(certificate.grade, pageWidth / 2, 140, { align: "center" });
+        }
+
+        // 10. Date & Signature Lines
+        // Date Left
+        doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.4);
+        doc.line(40, 168, 85, 168);
+        
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(15, 32, 67);
+        doc.setFontSize(11);
+        doc.text(new Date(certificate.issueDate).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" }), 62.5, 164, { align: "center" });
+        
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(120, 120, 120);
+        doc.setFontSize(9);
+        doc.text("Date of Issuance", 62.5, 173, { align: "center" });
+
+        // Signature Right
+        doc.line(pageWidth - 85, 168, pageWidth - 40, 168);
+
+        // Gold styled digital signature text
+        doc.setFont("times", "italic");
+        doc.setTextColor(197, 160, 89);
+        doc.setFontSize(15);
+        doc.text("SmartAssess", pageWidth - 62.5, 163, { align: "center" });
+
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(120, 120, 120);
+        doc.setFontSize(9);
+        doc.text("Authorized Signature", pageWidth - 62.5, 173, { align: "center" });
+
+        // 11. Verification footer box
+        const verifyUrl = `${window.location.origin}/verify/${certificate.verificationCode}`;
+        
+        doc.setFillColor(245, 246, 248);
+        doc.rect(pageWidth / 2 - 85, 180, 170, 10, "F");
+        
+        doc.setDrawColor(220, 224, 230);
+        doc.setLineWidth(0.2);
+        doc.rect(pageWidth / 2 - 85, 180, 170, 10, "S");
+
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(110, 110, 110);
+        doc.setFontSize(7.5);
+        doc.text(
+          `Certificate ID: ${certificate.certificateId}   |   Verification Code: ${certificate.verificationCode}   |   Verify at: ${verifyUrl}`, 
+          pageWidth / 2, 
+          186.5, 
+          { align: "center" }
+        );
+
+        // Save PDF
+        doc.save(`Certificate_${student.name?.replace(/\s+/g, "_") || "Student"}_SmartAssess.pdf`);
+      } catch (error) {
+        console.error("PDF Generation Error:", error);
+        toast.error("Failed to generate certificate.");
+      } finally {
+        setIsGenerating(false);
       }
+    };
 
-      // Footer
-      const verifyUrl = `${window.location.origin}/verify/${certificate.verificationCode}`;
-      doc.setFontSize(10);
-      doc.setTextColor(150);
-      doc.text(`Certificate ID: ${certificate.certificateId}`, 20, pageHeight - 20);
-      doc.text(`Verify at: ${verifyUrl}`, pageWidth / 2, pageHeight - 20, { align: "center" });
-      doc.text(`Verification Code: ${certificate.verificationCode}`, pageWidth - 20, pageHeight - 20, { align: "right" });
-
-      // Save
-      doc.save(`Certificate_${student.name}_${exam.title}.pdf`);
-    } catch (error) {
-      console.error("PDF Generation Error:", error);
-      toast.error("Failed to generate certificate.");
-    } finally {
-      setIsGenerating(false);
-    }
+    const img = new Image();
+    img.src = "/smartassess-logo.png";
+    img.onload = () => proceedWithPDF(img);
+    img.onerror = () => {
+      console.warn("Failed to load official SmartAssess logo. Generating certificate without it.");
+      proceedWithPDF();
+    };
   };
 
   return (

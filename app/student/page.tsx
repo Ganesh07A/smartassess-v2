@@ -35,10 +35,10 @@ export default async function StudentDashboard({
   if (filter === "active") {
     exams = exams.filter(e => {
       const now = new Date();
-      return now >= new Date(e.startTime) && now <= new Date(e.endTime) && e.sessions[0]?.status !== "COMPLETED";
+      return now >= new Date(e.startTime) && now <= new Date(e.endTime) && e.sessions[0]?.status !== "COMPLETED" && e.sessions[0]?.status !== "FORCE_SUBMITTED";
     });
   } else if (filter === "completed") {
-    exams = exams.filter(e => e.sessions[0]?.status === "COMPLETED");
+    exams = exams.filter(e => e.sessions[0]?.status === "COMPLETED" || e.sessions[0]?.status === "FORCE_SUBMITTED");
   }
   
   // Calculate student stats
@@ -48,7 +48,7 @@ export default async function StudentDashboard({
   const examSessions = await prisma.studentExamSession.findMany({
     where: { 
       studentId: session.user.id,
-      status: "COMPLETED"
+      status: { in: ["COMPLETED", "FORCE_SUBMITTED"] }
     },
     include: {
       submissions: true,
@@ -67,7 +67,7 @@ export default async function StudentDashboard({
   const stats = [
     { label: "Exams Taken", value: examSessions.length, icon: CheckCircle, color: "text-green-600", bg: "bg-green-50" },
     { label: "Average Score", value: `${avgScore.toFixed(1)}%`, icon: Trophy, color: "text-blue-600", bg: "bg-blue-50" },
-    { label: "Pending Exams", value: exams.filter(e => e.sessions[0]?.status !== "COMPLETED").length, icon: Activity, color: "text-orange-600", bg: "bg-orange-50" },
+    { label: "Pending Exams", value: exams.filter(e => e.sessions[0]?.status !== "COMPLETED" && e.sessions[0]?.status !== "FORCE_SUBMITTED").length, icon: Activity, color: "text-orange-600", bg: "bg-orange-50" },
     { label: "Points Earned", value: totalEarned.toFixed(0), icon: Award, color: "text-purple-600", bg: "bg-purple-50" },
   ];
 
@@ -134,7 +134,7 @@ export default async function StudentDashboard({
             ) : (
               exams.map((exam) => {
                 const session = exam.sessions[0];
-                const isCompleted = session?.status === "COMPLETED";
+                const isCompleted = session?.status === "COMPLETED" || session?.status === "FORCE_SUBMITTED";
                 const isStarted = session?.status === "STARTED";
                 const now = new Date();
                 const startTime = new Date(exam.startTime);

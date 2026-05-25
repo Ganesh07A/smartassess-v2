@@ -21,10 +21,27 @@ export default async function ExamResultsPage({
   const { tab = "table" } = await searchParams;
   const session = await getServerSession(authOptions);
   
-  const exam = await prisma.exam.findUnique({
+  // Fetch teacher's department
+  const teacher = session?.user.id
+    ? await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { department: true }
+      })
+    : null;
+  const teacherDept = teacher?.department;
+
+  const exam = await prisma.exam.findFirst({
     where: { 
       id,
-      batch: { teacherId: session?.user.id }
+      batch: {
+        OR: [
+          { teacherId: session?.user.id },
+          ...(teacherDept ? [{ 
+            department: teacherDept,
+            teacherId: null
+          }] : [])
+        ]
+      }
     },
     include: {
       batch: true,
@@ -117,6 +134,7 @@ export default async function ExamResultsPage({
                       <td className="px-6 py-4">
                         <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase ${
                           res.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : 
+                          res.status === 'FORCE_SUBMITTED' ? 'bg-red-100 text-red-700 font-extrabold border border-red-200' :
                           res.status === 'STARTED' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
                         }`}>
                           {res.status}
