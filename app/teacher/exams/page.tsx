@@ -2,6 +2,8 @@ import { getTeacherExams } from "@/app/actions/exam";
 import DuplicateButton from "./duplicate-button";
 import { BookOpen, Users, Clock, ArrowRight, Plus } from "lucide-react";
 import Link from "next/link";
+import LocalTime from "@/ui/local-time";
+import { resolveExamStatus } from "@/lib/exams/status";
 
 export const dynamic = 'force-dynamic';
 
@@ -34,11 +36,10 @@ export default async function ExamsPage() {
           </div>
         ) : (
           exams.map((exam) => {
-            const isDraft = !exam.published;
-            const startTime = new Date(exam.startTime);
-            const endTime = new Date(exam.endTime);
-            const isUpcoming = now < startTime;
-            const isExpired = now > endTime;
+            const status = resolveExamStatus(exam, now);
+            const isDraft = status === "DRAFT";
+            const isUpcoming = status === "UPCOMING";
+            const isExpired = status === "EXPIRED";
 
             return (
               <div key={exam.id} className="bg-white p-6 rounded-xl shadow-sm border group hover:shadow-md transition-all flex flex-col md:flex-row md:items-center justify-between">
@@ -83,8 +84,8 @@ export default async function ExamsPage() {
                     {exam._count.sessions} Submissions
                   </div>
                   <div className="text-xs text-gray-500 font-bold uppercase tracking-wider flex flex-wrap gap-x-4 gap-y-1">
-                    <span>Start: <span className="text-gray-700 normal-case font-semibold">{new Date(exam.startTime).toLocaleString()}</span></span>
-                    <span>End: <span className="text-gray-700 normal-case font-semibold">{new Date(exam.endTime).toLocaleString()}</span></span>
+                    <span>Start: <LocalTime dateString={exam.startTime} mode="datetime" className="text-gray-700 normal-case font-semibold" /></span>
+                    <span>End: <LocalTime dateString={exam.endTime} mode="datetime" className="text-gray-700 normal-case font-semibold" /></span>
                   </div>
                 </div>
               </div>

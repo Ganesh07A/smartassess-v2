@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { pusherClient } from "@/app/lib/pusher-client";
+import { examChannel } from "@/app/lib/pusher-channels";
 import { 
   Users, 
   AlertTriangle, 
@@ -52,84 +53,99 @@ export default function LiveDashboard({
     }, 5000);
   }, []);
 
+  // Keep a ref in sync so event handlers can read the latest roster without re-subscribing.
+  // (Depending on `sessions` used to tear down and re-create the channel on every event.)
+  const sessionsRef = useRef(sessions);
+  useEffect(() => {
+    sessionsRef.current = sessions;
+  }, [sessions]);
+
   useEffect(() => {
     if (!pusherClient) return;
 
-    const channel = pusherClient.subscribe(`exam-${examId}`);
+    const channel = pusherClient.subscribe(examChannel(examId));
 
     channel.bind("student-joined", (data: { studentId: string; studentName: string; prn: string; startTime: string; ipAddress?: string }) => {
-      setSessions(prev => {
-        const newSessions = {
-          ...prev,
-          [data.studentId]: {
-            ...prev[data.studentId],
-            studentId: data.studentId,
-            studentName: data.studentName,
-            prn: data.prn,
-            status: "STARTED",
-            startTime: data.startTime,
-            updatedAt: new Date().toISOString(),
-            answeredCount: prev[data.studentId]?.answeredCount || 0,
-            tabSwitches: prev[data.studentId]?.tabSwitches || 0,
-            ipAddress: data.ipAddress,
-          }
-        };
+      const previous = sessionsRef.current;
+      const hasIpCollision =
+        Boolean(data.ipAddress) &&
+        data.ipAddress !== "unknown" &&
+        Object.values(previous).some(
+          (other) =>
+            other.ipAddress === data.ipAddress &&
+            other.studentId !== data.studentId &&
+            other.status === "STARTED",
+        );
 
-        // Check for duplicate IP
-        if (data.ipAddress && data.ipAddress !== 'unknown') {
-          const duplicateStudents = Object.values(newSessions).filter(
-            s => s.ipAddress === data.ipAddress && s.studentId !== data.studentId && s.status === 'STARTED'
-          );
-          if (duplicateStudents.length > 0) {
-            addAlert(`Multiple students detected on IP: ${data.ipAddress}!`, 'warning');
-          }
-        }
+      setSessions((prev) => ({
+        ...prev,
+        [data.studentId]: {
+          ...prev[data.studentId],
+          studentId: data.studentId,
+          studentName: data.studentName,
+          prn: data.prn,
+          status: "STARTED",
+          startTime: data.startTime,
+          updatedAt: new Date().toISOString(),
+          answeredCount: prev[data.studentId]?.answeredCount || 0,
+          tabSwitches: prev[data.studentId]?.tabSwitches || 0,
+          ipAddress: data.ipAddress,
+        },
+      }));
 
-        return newSessions;
-      });
-      addAlert(`${data.studentName} joined the exam`, 'info');
+      if (hasIpCollision) {
+        addAlert(`Multiple students detected on IP: ${data.ipAddress}!`, "warning");
+      }
+      addAlert(`${data.studentName} joined the exam`, "info");
     });
 
     channel.bind("tab-switch", (data: { studentId: string; studentName: string; totalSwitches: number }) => {
-      setSessions(prev => ({
+      setSessions((prev) => ({
         ...prev,
         [data.studentId]: {
           ...prev[data.studentId],
           tabSwitches: data.totalSwitches,
           updatedAt: new Date().toISOString(),
-        }
+        },
       }));
-      addAlert(`${data.studentName} switched tabs! (Total: ${data.totalSwitches})`, 'warning');
+      addAlert(`${data.studentName} switched tabs! (Total: ${data.totalSwitches})`, "warning");
     });
 
     channel.bind("answer-saved", (data: { studentId: string; answeredCount: number }) => {
-      setSessions(prev => ({
+      setSessions((prev) => ({
         ...prev,
         [data.studentId]: {
           ...prev[data.studentId],
           answeredCount: data.answeredCount,
           updatedAt: new Date().toISOString(),
-        }
+        },
       }));
     });
 
-    channel.bind("student-submitted", (data: { studentId: string }) => {
-      setSessions(prev => ({
+    // The status emitted by the server is authoritative: force-submits must not render as
+    // ordinary completions (the previous handler hardcoded COMPLETED).
+    channel.bind("student-submitted", (data: { studentId: string; status?: string }) => {
+      const name = sessionsRef.current[data.studentId]?.studentName || "A student";
+      setSessions((prev) => ({
         ...prev,
         [data.studentId]: {
           ...prev[data.studentId],
-          status: "COMPLETED",
+          status: data.status === "FORCE_SUBMITTED" ? "FORCE_SUBMITTED" : "COMPLETED",
           updatedAt: new Date().toISOString(),
-        }
+        },
       }));
-      const name = sessions[data.studentId]?.studentName || "A student";
-      addAlert(`${name} submitted the exam`, 'info');
+      addAlert(
+        data.status === "FORCE_SUBMITTED"
+          ? `${name} was force-submitted`
+          : `${name} submitted the exam`,
+        "info",
+      );
     });
 
     return () => {
-      pusherClient?.unsubscribe(`exam-${examId}`);
+      pusherClient?.unsubscribe(examChannel(examId));
     };
-  }, [examId, sessions, addAlert]);
+  }, [examId, addAlert]);
 
   const sessionList = Object.values(sessions).sort((a, b) => 
     new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()

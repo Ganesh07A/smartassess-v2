@@ -9,6 +9,7 @@ import ManualQuestionAdder from "./manual-adder";
 import DeleteQuestionButton from "./delete-button";
 import EditQuestionModal from "./edit-modal";
 import AIGenerator from "./ai-generator";
+import LocalTime from "@/ui/local-time";
 import { publishExam } from "@/app/actions/exam";
 
 export const dynamic = 'force-dynamic';
@@ -107,7 +108,7 @@ export default async function ExamDetailsPage({
             </span>
             <span className="flex items-center px-3 py-1.5 bg-slate-50 text-slate-600 font-bold rounded-xl border border-slate-100/50">
               <Calendar className="w-3.5 h-3.5 mr-1.5 text-slate-400" /> 
-              Starts: {new Date(exam.startTime).toLocaleDateString()}
+              Starts: <LocalTime dateString={exam.startTime} mode="date" className="ml-1" />
             </span>
             {exam.published ? (
               <span className="flex items-center px-3 py-1.5 bg-emerald-50 text-emerald-700 font-bold rounded-xl border border-emerald-100/50">

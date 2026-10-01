@@ -6,6 +6,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle, Clock, Table, BarChart3 } from "lucide-react";
 import ResultExporter from "./result-exporter";
+import LocalTime from "@/ui/local-time";
 import AnalyticsDashboard from "./analytics-dashboard";
 
 export const dynamic = 'force-dynamic';
@@ -152,7 +153,7 @@ export default async function ExamResultsPage({
                       <td className="px-6 py-4 text-right text-gray-500 text-sm font-normal">
                         <div className="flex items-center justify-end">
                           <Clock className="w-3 h-3 mr-1" />
-                          {new Date(res.updatedAt).toLocaleString()}
+                          <LocalTime dateString={res.updatedAt} mode="datetime" className="text-gray-500 font-normal" />
                         </div>
                       </td>
                     </tr>

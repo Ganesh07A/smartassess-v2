@@ -52,8 +52,8 @@ export default function SignUpPage() {
       return;
     }
 
-    if (password.length < 6) {
-      const msg = "Password must be at least 6 characters.";
+    if (password.length < 8) {
+      const msg = "Password must be at least 8 characters.";
       setError(msg);
       toast.error(msg);
       setLoading(false);

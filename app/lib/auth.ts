@@ -5,6 +5,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { prisma } from "@/app/db";
 import bcrypt from "bcryptjs";
 import { Role } from "@prisma/client";
+import { rateLimits } from "@/lib/rate-limit";
 
 declare module "next-auth" {
   interface Session {
@@ -57,6 +58,9 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || !credentials?.password) {
           throw new Error("Invalid credentials");
         }
+
+        // Slow down credential stuffing / brute force per account.
+        await rateLimits.login(credentials.email);
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email },
