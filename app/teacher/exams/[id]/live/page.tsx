@@ -1,6 +1,5 @@
 import { prisma } from "@/app/db";
-import { requireTeacher, teacherExamScope } from "@/lib/auth/scope";
-import { notFound } from "next/navigation";
+import { assertExamAccess, requireTeacher } from "@/lib/auth/scope";
 import LiveDashboard from "./live-dashboard";
 import Link from "next/link";
 import { ArrowLeft, Radio } from "lucide-react";
@@ -15,50 +14,109 @@ export default async function LiveMonitorPage({
   const { id } = await params;
   const teacher = await requireTeacher();
 
-  const exam = await prisma.exam.findFirst({
-    where: { 
-      AND: [
-        { id },
-        teacherExamScope(teacher)
-      ]
-    },
-    include: {
-      batch: true,
-      _count: {
-        select: { questions: true }
-      }
+  const exam = await assertExamAccess(id, teacher, {
+    id: true,
+    title: true,
+    batchId: true,
+    batch: { select: { id: true, name: true } },
+    _count: {
+      select: { questions: true }
     }
   });
 
-  if (!exam) {
-    notFound();
-  }
+  const ROSTER_CAP = 1000;
 
-  // Fetch initial student sessions (bounded)
-  const studentSessions = await prisma.studentExamSession.findMany({
-    where: { examId: id },
-    take: 200,
-    include: {
-      student: {
-        select: { name: true, prn: true }
+  // Fetch initial student sessions and the batch roster in parallel (bounded)
+  const [sessions, roster] = await Promise.all([
+    prisma.studentExamSession.findMany({
+      where: { examId: id },
+      take: ROSTER_CAP,
+      select: {
+        id: true,
+        studentId: true,
+        status: true,
+        violationCount: true,
+        tabSwitches: true,
+        riskScore: true,
+        lastHeartbeatAt: true,
+        startTime: true,
+        createdAt: true,
+        updatedAt: true,
+        ipAddress: true,
+        student: {
+          select: { id: true, name: true, prn: true, email: true }
+        },
+        _count: {
+          select: { submissions: true }
+        }
+      }
+    }),
+    prisma.user.findMany({
+      where: {
+        role: "STUDENT",
+        enrolledBatches: { some: { id: exam.batchId } }
       },
-      _count: {
-        select: { submissions: true }
-      }
+      select: { id: true, name: true, prn: true },
+      take: ROSTER_CAP
+    })
+  ]);
+
+  // Index active/past sessions by studentId
+  const sessionByStudentId = new Map(sessions.map((s) => [s.studentId, s]));
+
+  // Merge batch roster: every enrolled student appears, even if they have not started
+  const mergedSessions = roster.map((student) => {
+    const s = sessionByStudentId.get(student.id);
+    if (s) {
+      sessionByStudentId.delete(student.id); // Mark handled
+      return {
+        studentId: student.id,
+        studentName: s.student.name || student.name || "Unknown",
+        prn: s.student.prn || student.prn || "N/A",
+        status: s.status,
+        answeredCount: s._count.submissions,
+        tabSwitches: s.tabSwitches,
+        violationCount: s.violationCount || s.tabSwitches,
+        riskScore: s.riskScore || 0,
+        lastHeartbeatAt: s.lastHeartbeatAt ? s.lastHeartbeatAt.toISOString() : null,
+        startTime: (s.startTime || s.createdAt).toISOString(),
+        updatedAt: s.updatedAt.toISOString(),
+        ipAddress: s.ipAddress || "unknown"
+      };
     }
+    return {
+      studentId: student.id,
+      studentName: student.name || "Unknown",
+      prn: student.prn || "N/A",
+      status: "NOT_STARTED",
+      answeredCount: 0,
+      tabSwitches: 0,
+      violationCount: 0,
+      riskScore: 0,
+      lastHeartbeatAt: null,
+      startTime: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      ipAddress: "unknown"
+    };
   });
 
-  const formattedSessions = studentSessions.map(s => ({
-    studentId: s.studentId,
-    studentName: s.student.name || "Unknown",
-    prn: s.student.prn || "N/A",
-    status: s.status,
-    answeredCount: s._count.submissions,
-    tabSwitches: s.tabSwitches,
-    startTime: s.startTime || s.createdAt,
-    updatedAt: s.updatedAt,
-    ipAddress: s.ipAddress || "unknown",
-  }));
+  // Append any sessions belonging to students not in the roster query
+  for (const s of sessionByStudentId.values()) {
+    mergedSessions.push({
+      studentId: s.studentId,
+      studentName: s.student.name || "Unknown",
+      prn: s.student.prn || "N/A",
+      status: s.status,
+      answeredCount: s._count.submissions,
+      tabSwitches: s.tabSwitches,
+      violationCount: s.violationCount || s.tabSwitches,
+      riskScore: s.riskScore || 0,
+      lastHeartbeatAt: s.lastHeartbeatAt ? s.lastHeartbeatAt.toISOString() : null,
+      startTime: (s.startTime || s.createdAt).toISOString(),
+      updatedAt: s.updatedAt.toISOString(),
+      ipAddress: s.ipAddress || "unknown"
+    });
+  }
 
   return (
     <div className="max-w-6xl mx-auto p-6">
@@ -87,7 +145,7 @@ export default async function LiveMonitorPage({
 
       <LiveDashboard 
         examId={id} 
-        initialSessions={formattedSessions} 
+        initialSessions={mergedSessions} 
         totalQuestions={exam._count.questions} 
       />
     </div>
