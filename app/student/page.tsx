@@ -1,276 +1,309 @@
-import { getStudentExams } from "@/app/actions/exam";
 import { prisma } from "@/app/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { 
-  BookOpen, 
-  Clock, 
-  Calendar, 
-  ArrowRight, 
-  CheckCircle, 
+import {
+  BookOpen,
+  Clock,
+  Calendar,
+  ArrowRight,
+  CheckCircle,
   Lock,
   Award,
   Activity,
   Trophy,
-  AlertCircle
+  XCircle,
 } from "lucide-react";
-import LocalTime from "./local-time";
+import LocalTime from "@/ui/local-time";
+import { getStudentExamsPaged } from "@/app/actions/exam-filters";
+import { FilterBar, type FilterDef } from "@/ui/filters/filter-bar";
+import { Pagination } from "@/ui/filters/pagination";
+import { EmptyState } from "@/ui/filters/empty-state";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export default async function StudentDashboard({
-  searchParams
+  searchParams,
 }: {
-  searchParams: Promise<{ filter?: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const session = await getServerSession(authOptions);
-  if (!session) redirect("/login");
+  if (!session?.user?.id) redirect("/login");
 
-  const { filter } = await searchParams;
-  let exams = await getStudentExams();
-  
-  // Apply filters
-  if (filter === "active") {
-    exams = exams.filter(e => {
-      const now = new Date();
-      return now >= new Date(e.startTime) && now <= new Date(e.endTime) && e.sessions[0]?.status !== "COMPLETED" && e.sessions[0]?.status !== "FORCE_SUBMITTED";
-    });
-  } else if (filter === "completed") {
-    exams = exams.filter(e => e.sessions[0]?.status === "COMPLETED" || e.sessions[0]?.status === "FORCE_SUBMITTED");
-  }
-  
-  // Calculate student stats
-  const upcomingExams = exams.filter(e => new Date(e.startTime) > new Date());
-  
-  // Get detailed scores for the summary card
-  const examSessions = await prisma.studentExamSession.findMany({
-    where: { 
-      studentId: session.user.id,
-      status: { in: ["COMPLETED", "FORCE_SUBMITTED"] }
-    },
-    include: {
-      submissions: true,
-      exam: {
-        include: {
-          questions: true
-        }
-      }
-    }
-  });
+  const rawParams = await searchParams;
 
-  const totalEarned = examSessions.reduce((acc, s) => acc + s.submissions.reduce((sum, sub) => sum + (sub.pointsAwarded || 0), 0), 0);
-  const totalPossible = examSessions.reduce((acc, s) => acc + s.exam.questions.reduce((sum, q) => sum + q.points, 0), 0);
-  const avgScore = totalPossible > 0 ? (totalEarned / totalPossible) * 100 : 0;
+  // Run student exam list query and overall stats aggregation in parallel
+  const [pagedData, statsAgg, totalAssignedCount] = await Promise.all([
+    getStudentExamsPaged(rawParams),
+    prisma.studentExamSession.aggregate({
+      where: {
+        studentId: session.user.id,
+        status: { in: ["COMPLETED", "FORCE_SUBMITTED"] },
+      },
+      _count: { id: true },
+      _sum: { totalScore: true, maxScore: true },
+      _avg: { percentage: true },
+    }),
+    prisma.exam.count({
+      where: {
+        published: true,
+        status: { not: "ARCHIVED" },
+        batch: { students: { some: { id: session.user.id } } },
+      },
+    }),
+  ]);
+
+  const examsCompleted = statsAgg._count.id;
+  const avgPercentage = statsAgg._avg.percentage ?? 0;
+  const pendingCount = Math.max(0, totalAssignedCount - examsCompleted);
+  const totalEarned = statsAgg._sum.totalScore ?? 0;
 
   const stats = [
-    { label: "Exams Taken", value: examSessions.length, icon: CheckCircle, color: "text-green-600", bg: "bg-green-50" },
-    { label: "Average Score", value: `${avgScore.toFixed(1)}%`, icon: Trophy, color: "text-blue-600", bg: "bg-blue-50" },
-    { label: "Pending Exams", value: exams.filter(e => e.sessions[0]?.status !== "COMPLETED" && e.sessions[0]?.status !== "FORCE_SUBMITTED").length, icon: Activity, color: "text-orange-600", bg: "bg-orange-50" },
-    { label: "Points Earned", value: totalEarned.toFixed(0), icon: Award, color: "text-purple-600", bg: "bg-purple-50" },
+    {
+      label: "Exams Taken",
+      value: examsCompleted,
+      icon: CheckCircle,
+      color: "text-emerald-600",
+      bg: "bg-emerald-50",
+    },
+    {
+      label: "Average Score",
+      value: `${avgPercentage.toFixed(1)}%`,
+      icon: Trophy,
+      color: "text-blue-600",
+      bg: "bg-blue-50",
+    },
+    {
+      label: "Pending Exams",
+      value: pendingCount,
+      icon: Activity,
+      color: "text-amber-600",
+      bg: "bg-amber-50",
+    },
+    {
+      label: "Points Earned",
+      value: totalEarned.toFixed(0),
+      icon: Award,
+      color: "text-purple-600",
+      bg: "bg-purple-50",
+    },
   ];
 
+  const filterDefs: FilterDef[] = [
+    {
+      type: "search",
+      param: "q",
+      label: "Exam",
+      placeholder: "Search exam title or subject...",
+    },
+    {
+      type: "facet",
+      param: "status",
+      label: "Status",
+      options: pagedData.facets?.status ?? [],
+    },
+    {
+      type: "date-range",
+      param: "date",
+      label: "Exam Date",
+    },
+    {
+      type: "sort",
+      param: "sort",
+      label: "Sort by",
+      sortOptions: [
+        { value: "startTime", label: "Start Time" },
+        { value: "endTime", label: "End Time" },
+        { value: "percentage", label: "Performance" },
+      ],
+    },
+  ];
+
+  const now = new Date();
+
   return (
-    <div className="space-y-10">
+    <div className="space-y-10 max-w-6xl mx-auto pb-12">
       {/* Welcome Header */}
       <header>
-        <h2 className="text-3xl font-black text-gray-900 tracking-tight">Welcome back, {session.user.name?.split(' ')[0]}!</h2>
-        <p className="text-gray-500 font-medium mt-1">Check your examination schedule and performance below.</p>
+        <h2 className="text-3xl font-black text-gray-900 tracking-tight">
+          Welcome back, {session.user.name?.split(" ")[0]}!
+        </h2>
+        <p className="text-gray-500 font-medium text-xs mt-1">
+          Review your examination schedule, active tests, and verified performance.
+        </p>
       </header>
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      {/* Verified Stats Grid (Real SQL Aggregations, No Fabricated Rankings) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat) => (
-          <div key={stat.label} className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm hover:shadow-md transition-all group">
+          <div
+            key={stat.label}
+            className="bg-white p-6 rounded-3xl border border-slate-100 shadow-xl shadow-slate-100/40 hover:shadow-2xl hover:shadow-slate-200/50 transition-all group"
+          >
             <div className="flex items-center justify-between mb-4">
-              <div className={`p-2.5 rounded-xl ${stat.bg} ${stat.color} transition-transform group-hover:scale-110`}>
+              <div
+                className={`p-3 rounded-2xl ${stat.bg} ${stat.color} transition-transform group-hover:scale-110`}
+              >
                 <stat.icon className="w-5 h-5" />
               </div>
-              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Global Rank: #12</span>
             </div>
-            <p className="text-2xl font-black text-gray-900">{stat.value}</p>
-            <p className="text-[13px] font-bold text-gray-400 mt-1">{stat.label}</p>
+            <p className="text-2xl font-black text-slate-800">{stat.value}</p>
+            <p className="text-xs font-bold text-slate-400 mt-1">{stat.label}</p>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-        {/* Main Exam List */}
-        <div className="lg:col-span-2 space-y-6">
-          <div className="flex justify-between items-center">
-            <h3 className="text-xl font-black text-gray-900 tracking-tight">Scheduled Examinations</h3>
-            <div className="flex bg-gray-100 p-1 rounded-lg">
-              <Link 
-                href="/student" 
-                className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${!filter ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                All
-              </Link>
-              <Link 
-                href="/student?filter=active" 
-                className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${filter === 'active' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                Active
-              </Link>
-              <Link 
-                href="/student?filter=completed" 
-                className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${filter === 'completed' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-              >
-                Completed
-              </Link>
-            </div>
+      <div className="space-y-6">
+        {/* Filter Bar */}
+        <div className="bg-white p-5 rounded-3xl border border-slate-100 shadow-xl shadow-slate-100/40">
+          <FilterBar defs={filterDefs} />
+        </div>
+
+        {/* Examinations List */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between px-2">
+            <h3 className="text-lg font-black text-slate-800 tracking-tight">
+              Assigned Examinations ({pagedData.total})
+            </h3>
           </div>
 
-          <div className="grid grid-cols-1 gap-4">
-            {exams.length === 0 ? (
-              <div className="bg-white rounded-3xl border-2 border-dashed border-gray-100 p-16 text-center">
-                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <BookOpen className="w-8 h-8 text-gray-200" />
-                </div>
-                <h3 className="text-lg font-bold text-gray-800">No Exams Found</h3>
-                <p className="text-gray-400 text-sm font-medium mt-1">Your schedule is currently clear. Contact your instructor if this is a mistake.</p>
-              </div>
-            ) : (
-              exams.map((exam) => {
-                const session = exam.sessions[0];
-                const isCompleted = session?.status === "COMPLETED" || session?.status === "FORCE_SUBMITTED";
-                const isStarted = session?.status === "STARTED";
-                const now = new Date();
+          {pagedData.rows.length === 0 ? (
+            <EmptyState
+              title="No exams found"
+              description="No assigned examinations match your current filter criteria."
+            />
+          ) : (
+            <div className="grid grid-cols-1 gap-4">
+              {pagedData.rows.map((exam) => {
+                const s = exam.session;
+                const isCompleted =
+                  s?.status === "COMPLETED" || s?.status === "FORCE_SUBMITTED";
+                const isStarted = s?.status === "STARTED";
                 const startTime = new Date(exam.startTime);
                 const endTime = new Date(exam.endTime);
                 const isUpcoming = now < startTime;
                 const isExpired = now > endTime;
+                const isMissed = isExpired && !isCompleted;
                 const canStart = !isCompleted && !isExpired && !isUpcoming;
 
                 return (
-                  <div key={exam.id} className="bg-white rounded-2xl border border-gray-100 p-6 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-900/5 transition-all group relative overflow-hidden">
-                    {canStart && <div className="absolute top-0 left-0 w-1 h-full bg-blue-600"></div>}
-                    
+                  <div
+                    key={exam.id}
+                    className="bg-white rounded-3xl border border-slate-100 p-6 shadow-xl shadow-slate-100/30 hover:border-indigo-100 hover:shadow-2xl hover:shadow-slate-200/40 transition-all group relative overflow-hidden"
+                  >
+                    {canStart && (
+                      <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-600" />
+                    )}
+
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-3 mb-2">
-                          <span className="px-2.5 py-1 bg-gray-100 text-gray-600 text-[10px] font-black rounded-lg uppercase tracking-wider">
+                      <div className="flex-1 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="px-2.5 py-0.5 bg-slate-100 text-slate-600 text-[10px] font-bold rounded-lg uppercase tracking-wider">
                             {exam.batch.name}
                           </span>
+
                           {isCompleted ? (
-                            <span className="flex items-center text-green-600 text-[10px] font-black uppercase tracking-wider">
-                              <CheckCircle className="w-3 h-3 mr-1" /> Completed
+                            <span className="flex items-center text-emerald-700 bg-emerald-50 border border-emerald-100/60 px-2.5 py-0.5 text-[10px] font-bold rounded-lg uppercase tracking-wider">
+                              <CheckCircle className="w-3 h-3 mr-1 text-emerald-600" /> Completed
+                            </span>
+                          ) : isMissed ? (
+                            <span className="flex items-center text-rose-700 bg-rose-50 border border-rose-100/60 px-2.5 py-0.5 text-[10px] font-bold rounded-lg uppercase tracking-wider">
+                              <XCircle className="w-3 h-3 mr-1 text-rose-600" /> Missed
                             </span>
                           ) : isUpcoming ? (
-                            <span className="flex items-center text-gray-400 text-[10px] font-black uppercase tracking-wider">
-                              <Lock className="w-3 h-3 mr-1" /> Scheduled
+                            <span className="flex items-center text-blue-700 bg-blue-50 border border-blue-100/60 px-2.5 py-0.5 text-[10px] font-bold rounded-lg uppercase tracking-wider">
+                              <Lock className="w-3 h-3 mr-1 text-blue-500" /> Scheduled
                             </span>
-                          ) : isExpired ? (
-                            <span className="text-red-500 text-[10px] font-black uppercase tracking-wider">Time Expired</span>
                           ) : (
-                            <span className="flex items-center text-blue-600 text-[10px] font-black animate-pulse uppercase tracking-wider">
-                              <Activity className="w-3 h-3 mr-1" /> Active Now
+                            <span className="flex items-center text-indigo-700 bg-indigo-50 border border-indigo-100/60 px-2.5 py-0.5 text-[10px] font-bold animate-pulse rounded-lg uppercase tracking-wider">
+                              <Activity className="w-3 h-3 mr-1 text-indigo-600" /> Active Now
+                            </span>
+                          )}
+
+                          {isCompleted && s?.percentage !== undefined && (
+                            <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100/60 text-[10px] font-black rounded-lg">
+                              Score: {s.percentage.toFixed(0)}%
                             </span>
                           )}
                         </div>
-                        <h3 className="text-lg font-black text-gray-900 group-hover:text-blue-600 transition-colors">{exam.title}</h3>
-                        <div className="flex items-center space-x-6 mt-3">
-                          <div className="flex items-center text-xs font-bold text-gray-400">
-                            <Clock className="w-3.5 h-3.5 mr-1.5 opacity-50" /> {exam.duration}m
+
+                        <h4 className="text-lg font-black text-slate-800 group-hover:text-indigo-600 transition-colors">
+                          {exam.title}
+                        </h4>
+
+                        {exam.description && (
+                          <p className="text-xs text-slate-400 font-medium line-clamp-1">
+                            {exam.description}
+                          </p>
+                        )}
+
+                        <div className="flex flex-wrap items-center gap-6 pt-1 text-xs font-bold text-slate-400">
+                          <div className="flex items-center">
+                            <Clock className="w-3.5 h-3.5 mr-1.5 opacity-60" /> {exam.duration} mins
                           </div>
-                          <div className="flex items-center text-xs font-bold text-gray-400">
-                            <Calendar className="w-3.5 h-3.5 mr-1.5 opacity-50" /> {startTime.toLocaleDateString()}
+                          <div className="flex items-center">
+                            <Calendar className="w-3.5 h-3.5 mr-1.5 opacity-60" /> Starts:{" "}
+                            <LocalTime dateString={exam.startTime} mode="date" className="ml-1" />
                           </div>
-                          <div className="flex items-center text-xs font-bold text-gray-400">
-                            <BookOpen className="w-3.5 h-3.5 mr-1.5 opacity-50" /> {exam._count.questions} Questions
+                          <div className="flex items-center">
+                            <BookOpen className="w-3.5 h-3.5 mr-1.5 opacity-60" /> {exam._count.questions} Items
                           </div>
                         </div>
                       </div>
 
-                      <div className="shrink-0">
+                      <div className="shrink-0 flex items-center gap-3">
                         {isCompleted ? (
-                          <Link 
+                          <Link
                             href={`/student/exams/${exam.id}/result`}
-                            className="inline-flex items-center px-6 py-2.5 bg-gray-900 text-white text-sm font-bold rounded-xl hover:bg-black transition-colors"
+                            className="inline-flex items-center px-5 py-2.5 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl transition-colors shadow-sm"
                           >
                             Result Analytics
-                            <ArrowRight className="w-4 h-4 ml-2" />
+                            <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
                           </Link>
                         ) : canStart ? (
-                          <Link 
+                          <Link
                             href={`/student/exams/${exam.id}`}
-                            className="inline-flex items-center px-6 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all hover:scale-105 active:scale-95"
+                            className="inline-flex items-center px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-200 transition-all hover:scale-105 active:scale-95"
                           >
                             {isStarted ? "Resume Attempt" : "Launch Exam"}
-                            <ArrowRight className="w-4 h-4 ml-2" />
+                            <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
                           </Link>
                         ) : isUpcoming ? (
                           <div className="text-right">
-                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Starts at</p>
-                            <p className="text-sm font-black text-gray-900">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">
+                              Starts at
+                            </p>
+                            <p className="text-xs font-black text-slate-800">
                               <LocalTime dateString={exam.startTime} />
                             </p>
                           </div>
                         ) : (
-                          <button disabled className="px-6 py-2.5 bg-gray-50 text-gray-300 text-sm font-bold rounded-xl cursor-not-allowed">
-                            Access Locked
-                          </button>
+                          <div className="text-right">
+                            <span className="px-4 py-2 bg-slate-100 text-slate-400 text-xs font-bold rounded-xl inline-block">
+                              Closed
+                            </span>
+                          </div>
                         )}
                       </div>
                     </div>
                   </div>
                 );
-              })
-            )}
-          </div>
-        </div>
-
-        {/* Right Sidebar - Notifications & Activity */}
-        <div className="space-y-8">
-          <div className="bg-white rounded-3xl border border-gray-100 p-8">
-            <h4 className="text-sm font-black text-gray-900 uppercase tracking-widest mb-6 flex items-center">
-              <Activity className="w-4 h-4 mr-2 text-blue-600" />
-              Latest Activity
-            </h4>
-            <div className="space-y-6">
-              {examSessions.slice(0, 3).map(session => (
-                <div key={session.id} className="flex items-start space-x-4">
-                  <div className="w-2 h-2 mt-1.5 bg-green-500 rounded-full"></div>
-                  <div>
-                    <p className="text-xs font-bold text-gray-900">Completed &quot;{session.exam.title}&quot;</p>
-                    <p className="text-[10px] text-gray-400 font-bold mt-0.5">{new Date(session.updatedAt).toLocaleDateString()}</p>
-                  </div>
-                </div>
-              ))}
-              {upcomingExams.length > 0 && (
-                <div className="flex items-start space-x-4">
-                  <div className="w-2 h-2 mt-1.5 bg-blue-500 rounded-full"></div>
-                  <div>
-                    <p className="text-xs font-bold text-gray-900">Assigned: {upcomingExams[0].title}</p>
-                    <p className="text-[10px] text-gray-400 font-bold mt-0.5">Prepare for launch</p>
-                  </div>
-                </div>
-              )}
+              })}
             </div>
-          </div>
+          )}
 
-          <div className="bg-gradient-to-br from-gray-900 to-black rounded-3xl p-8 text-white relative overflow-hidden group">
-            <Trophy className="absolute -right-4 -bottom-4 w-32 h-32 text-white/5 group-hover:scale-110 transition-transform duration-700" />
-            <div className="relative z-10">
-              <Award className="w-10 h-10 text-blue-400 mb-4" />
-              <h4 className="text-xl font-black mb-2">Platform Rank</h4>
-              <p className="text-gray-400 text-sm font-medium mb-6">You&apos;re in the top 15% of students this semester. Keep it up!</p>
-              <button className="w-full py-3 bg-white text-black font-black text-xs uppercase tracking-widest rounded-xl hover:bg-gray-100 transition-colors">
-                View Leaderboard
-              </button>
+          {/* Pagination Footer */}
+          {pagedData.totalPages > 1 && (
+            <div className="bg-white p-4 rounded-3xl border border-slate-100 shadow-sm">
+              <Pagination
+                total={pagedData.total}
+                page={pagedData.page}
+                perPage={pagedData.perPage}
+                totalPages={pagedData.totalPages}
+              />
             </div>
-          </div>
-
-          <div className="bg-orange-50 rounded-3xl p-6 border border-orange-100 flex items-start">
-            <AlertCircle className="w-5 h-5 text-orange-600 mr-3 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-xs font-black text-orange-900 uppercase tracking-widest mb-1">System Note</p>
-              <p className="text-xs font-bold text-orange-700/80 leading-relaxed">
-                Ensure you have a stable internet connection before launching any exam. Tab-switching is strictly monitored.
-              </p>
-            </div>
-          </div>
+          )}
         </div>
       </div>
     </div>

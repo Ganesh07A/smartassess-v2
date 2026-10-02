@@ -7,8 +7,10 @@ import { idSchema } from "@/lib/validation/schemas";
 import {
   examFilterSchema,
   resultFilterSchema,
+  questionFilterSchema,
   type ExamFilter,
   type ResultFilter,
+  type QuestionFilter,
 } from "@/lib/filters/schemas";
 import {
   buildExamWhere,
@@ -24,6 +26,25 @@ import {
   RESULT_LIST_SELECT,
   type ResultListRow,
 } from "@/lib/filters/builders/results";
+import {
+  buildQuestionWhere,
+  buildQuestionOrderBy,
+  QUESTION_ROW_SELECT,
+  type QuestionRow,
+} from "@/lib/filters/builders/questions";
+import {
+  studentExamFilterSchema,
+  type StudentExamFilter,
+} from "@/lib/filters/schemas";
+import {
+  buildStudentExamWhere,
+  buildStudentExamOrderBy,
+  buildStudentExamStatusWhere,
+  STUDENT_EXAM_ROW_SELECT,
+  type StudentExamRow,
+} from "@/lib/filters/builders/student-exams";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/lib/auth";
 import {
   pageCount,
   paginationArgs,
@@ -254,5 +275,203 @@ export async function exportExamResults(
     total: rows.length,
     truncated: rows.length === EXPORT_ROW_CAP,
     cap: EXPORT_ROW_CAP,
+  };
+}
+
+/**
+ * Fetches paginated, filtered, and sorted questions for an exam.
+ * Computes facets for type, difficulty, and topic in parallel.
+ */
+export async function getExamQuestionsPaged(
+  examId: string,
+  input: Partial<QuestionFilter> = {},
+): Promise<PagedResult<QuestionRow>> {
+  const teacher = await requireTeacher();
+  const id = parseInput(idSchema, examId);
+  await assertExamAccess(id, teacher);
+
+  const filter = questionFilterSchema.parse(input);
+  const where = buildQuestionWhere(id, filter);
+  const orderBy = buildQuestionOrderBy(filter);
+  const { skip, take } = paginationArgs(filter.page, filter.perPage);
+
+  // Facet queries
+  const whereWithoutType = buildQuestionWhere(id, { ...filter, type: undefined });
+  const whereWithoutDiff = buildQuestionWhere(id, { ...filter, difficulty: undefined });
+  const whereWithoutTopic = buildQuestionWhere(id, { ...filter, topic: undefined });
+
+  const [
+    rows,
+    total,
+    mcqCount,
+    codingCount,
+    easyCount,
+    mediumCount,
+    hardCount,
+    allTopics,
+  ] = await Promise.all([
+    prisma.examQuestion.findMany({
+      where,
+      orderBy,
+      skip,
+      take,
+      select: QUESTION_ROW_SELECT,
+    }),
+    prisma.examQuestion.count({ where }),
+    prisma.examQuestion.count({
+      where: { AND: [whereWithoutType, { question: { type: "MCQ" } }] },
+    }),
+    prisma.examQuestion.count({
+      where: { AND: [whereWithoutType, { question: { type: "CODING" } }] },
+    }),
+    prisma.examQuestion.count({
+      where: { AND: [whereWithoutDiff, { question: { difficulty: "EASY" } }] },
+    }),
+    prisma.examQuestion.count({
+      where: { AND: [whereWithoutDiff, { question: { difficulty: "MEDIUM" } }] },
+    }),
+    prisma.examQuestion.count({
+      where: { AND: [whereWithoutDiff, { question: { difficulty: "HARD" } }] },
+    }),
+    prisma.examQuestion.findMany({
+      where: whereWithoutTopic,
+      select: { question: { select: { topic: true } } },
+    }),
+  ]);
+
+  const topicCountMap = new Map<string, number>();
+  for (const item of allTopics) {
+    const t = item.question.topic || "Untagged";
+    topicCountMap.set(t, (topicCountMap.get(t) ?? 0) + 1);
+  }
+  const topicFacets = Array.from(topicCountMap.entries()).map(([value, count]) => ({
+    value,
+    label: value,
+    count,
+  }));
+
+  const typeFacets = [
+    { value: "MCQ", label: "MCQ", count: mcqCount },
+    { value: "CODING", label: "Coding", count: codingCount },
+  ];
+
+  const difficultyFacets = [
+    { value: "EASY", label: "Easy", count: easyCount },
+    { value: "MEDIUM", label: "Medium", count: mediumCount },
+    { value: "HARD", label: "Hard", count: hardCount },
+  ];
+
+  return {
+    rows,
+    total,
+    page: filter.page,
+    perPage: filter.perPage,
+    totalPages: pageCount(total, filter.perPage),
+    facets: {
+      type: typeFacets,
+      difficulty: difficultyFacets,
+      topic: topicFacets,
+    },
+  };
+}
+
+/**
+ * Fetches paginated, filtered, and sorted exams for the authenticated student.
+ * Uses denormalized session columns and handles 'missed' status correctly.
+ */
+export async function getStudentExamsPaged(
+  input: Partial<StudentExamFilter> = {},
+): Promise<PagedResult<StudentExamRow>> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    throw new Error("Authentication required");
+  }
+
+  const studentId = session.user.id;
+  const filter = studentExamFilterSchema.parse(input);
+  const now = new Date();
+
+  const where = buildStudentExamWhere(studentId, filter, now);
+  const orderBy = buildStudentExamOrderBy(filter);
+  const { skip, take } = paginationArgs(filter.page, filter.perPage);
+
+  const whereWithoutStatus = buildStudentExamWhere(studentId, { ...filter, status: undefined }, now);
+
+  const [
+    exams,
+    total,
+    upcomingCount,
+    activeCount,
+    completedCount,
+    missedCount,
+  ] = await Promise.all([
+    prisma.exam.findMany({
+      where,
+      orderBy,
+      skip,
+      take,
+      select: {
+        ...STUDENT_EXAM_ROW_SELECT,
+        sessions: {
+          where: { studentId },
+          select: {
+            id: true,
+            status: true,
+            totalScore: true,
+            maxScore: true,
+            percentage: true,
+            submittedAt: true,
+          },
+          take: 1,
+        },
+      },
+    }),
+    prisma.exam.count({ where }),
+    prisma.exam.count({
+      where: {
+        AND: [whereWithoutStatus, buildStudentExamStatusWhere(studentId, ["upcoming"], now)],
+      },
+    }),
+    prisma.exam.count({
+      where: {
+        AND: [whereWithoutStatus, buildStudentExamStatusWhere(studentId, ["active"], now)],
+      },
+    }),
+    prisma.exam.count({
+      where: {
+        AND: [whereWithoutStatus, buildStudentExamStatusWhere(studentId, ["completed"], now)],
+      },
+    }),
+    prisma.exam.count({
+      where: {
+        AND: [whereWithoutStatus, buildStudentExamStatusWhere(studentId, ["missed"], now)],
+      },
+    }),
+  ]);
+
+  const rows: StudentExamRow[] = exams.map((exam) => {
+    const studentSession = exam.sessions[0] ?? null;
+    return {
+      ...exam,
+      session: studentSession,
+    };
+  });
+
+  const statusFacets = [
+    { value: "active", label: "Active Now", count: activeCount },
+    { value: "upcoming", label: "Upcoming", count: upcomingCount },
+    { value: "completed", label: "Completed", count: completedCount },
+    { value: "missed", label: "Missed", count: missedCount },
+  ];
+
+  return {
+    rows,
+    total,
+    page: filter.page,
+    perPage: filter.perPage,
+    totalPages: pageCount(total, filter.perPage),
+    facets: {
+      status: statusFacets,
+    },
   };
 }
