@@ -1,72 +1,252 @@
-import { getExamResults, getExamAnalytics } from "@/app/actions/exam";
+import { getExamAnalytics } from "@/app/actions/exam";
+import { getExamResultsPaged } from "@/app/actions/exam-filters";
 import { prisma } from "@/app/db";
 import { requireTeacher, teacherExamScope } from "@/lib/auth/scope";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle, Clock, Table, BarChart3 } from "lucide-react";
+import { ArrowLeft, CheckCircle, Clock, Table, BarChart3, ShieldAlert } from "lucide-react";
 import ResultExporter from "./result-exporter";
 import LocalTime from "@/ui/local-time";
 import AnalyticsDashboard from "./analytics-dashboard";
+import { readParams } from "@/lib/filters/parse";
+import { resultFilterSchema } from "@/lib/filters/schemas";
+import { FilterBar, type FilterDef } from "@/ui/filters/filter-bar";
+import { DataTable, type Column } from "@/ui/filters/data-table";
+import { Pagination } from "@/ui/filters/pagination";
+import { EmptyState } from "@/ui/filters/empty-state";
+import type { ResultListRow } from "@/lib/filters/builders/results";
 
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
-export default async function ExamResultsPage({ 
+const RESULT_SORT_OPTIONS = [
+  { value: "percentage", label: "Score (%)" },
+  { value: "totalScore", label: "Total Points" },
+  { value: "submittedAt", label: "Submitted At" },
+  { value: "violationCount", label: "Violations" },
+  { value: "name", label: "Student Name" },
+  { value: "prn", label: "PRN" },
+];
+
+export default async function ExamResultsPage({
   params,
-  searchParams 
-}: { 
-  params: Promise<{ id: string }>,
-  searchParams: Promise<{ tab?: string }>
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { id } = await params;
-  const { tab = "table" } = await searchParams;
+  const rawParams = await searchParams;
+  const filter = readParams(resultFilterSchema, rawParams);
+  const tab = filter.tab || "table";
+
   const teacher = await requireTeacher();
 
   const exam = await prisma.exam.findFirst({
-    where: { 
-      AND: [
-        { id },
-        teacherExamScope(teacher)
-      ]
+    where: {
+      AND: [{ id }, teacherExamScope(teacher)],
     },
     include: {
       batch: true,
       _count: {
-        select: { questions: true }
-      }
-    }
+        select: { questions: true },
+      },
+    },
   });
 
   if (!exam) {
     notFound();
   }
 
-  const results = await getExamResults(id);
-  const analytics = await getExamAnalytics(id);
+  // Only run paginated queries for table tab; analytics tab runs its own pipeline
+  const { rows, total, page, perPage, totalPages, facets } =
+    tab === "table"
+      ? await getExamResultsPaged(id, filter)
+      : {
+          rows: [],
+          total: 0,
+          page: 1,
+          perPage: 25,
+          totalPages: 1,
+          facets: { status: [], band: [] },
+        };
+
+  const analytics = tab === "analytics" ? await getExamAnalytics(id) : null;
+
+  const filterDefs: FilterDef[] = [
+    {
+      param: "q",
+      label: "Search Students",
+      placeholder: "Search name, PRN or email...",
+      type: "search",
+    },
+    {
+      param: "status",
+      label: "Status",
+      type: "facet",
+      options: facets.status,
+      multi: true,
+    },
+    {
+      param: "band",
+      label: "Score Band",
+      type: "facet",
+      options: facets.band,
+      multi: true,
+    },
+    {
+      param: "dateRange",
+      label: "Submitted Window",
+      type: "date-range",
+    },
+    {
+      param: "sort",
+      label: "Sort",
+      type: "sort",
+      sortOptions: RESULT_SORT_OPTIONS,
+    },
+  ];
+
+  const columns: Column<ResultListRow>[] = [
+    {
+      key: "student",
+      header: "Student",
+      sortKey: "name",
+      render: (row) => (
+        <div>
+          <div className="font-bold text-slate-800">{row.student.name || "Unknown"}</div>
+          <div className="text-xs text-slate-500 font-normal">{row.student.email}</div>
+        </div>
+      ),
+    },
+    {
+      key: "prn",
+      header: "PRN",
+      sortKey: "prn",
+      render: (row) => <span className="font-mono text-xs font-bold text-slate-700">{row.student.prn || "N/A"}</span>,
+    },
+    {
+      key: "status",
+      header: "Status",
+      render: (row) => (
+        <span
+          className={`px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+            row.status === "COMPLETED"
+              ? "bg-emerald-50 text-emerald-700 border border-emerald-100"
+              : row.status === "FORCE_SUBMITTED"
+                ? "bg-rose-50 text-rose-700 font-extrabold border border-rose-200"
+                : row.status === "STARTED"
+                  ? "bg-blue-50 text-blue-700 border border-blue-100"
+                  : "bg-slate-100 text-slate-600 border border-slate-200"
+          }`}
+        >
+          {row.status.replace("_", " ")}
+        </span>
+      ),
+    },
+    {
+      key: "correct",
+      header: "Correct",
+      render: (row) => {
+        const correctCount = row.submissions.filter((s) => s.isCorrect).length;
+        return (
+          <div className="flex items-center text-xs font-semibold text-slate-700">
+            <CheckCircle className="w-3.5 h-3.5 mr-1 text-emerald-600 shrink-0" />
+            {correctCount} / {exam._count.questions}
+          </div>
+        );
+      },
+    },
+    {
+      key: "score",
+      header: "Score (%)",
+      sortKey: "percentage",
+      render: (row) => (
+        <div>
+          <span className="font-black text-indigo-600">{row.percentage.toFixed(1)}%</span>
+          <span className="ml-1 text-xs text-slate-400 font-medium">({row.totalScore.toFixed(1)} pts)</span>
+        </div>
+      ),
+    },
+    {
+      key: "violations",
+      header: "Violations",
+      sortKey: "violationCount",
+      render: (row) => {
+        if (row.violationCount === 0) {
+          return <span className="text-xs text-slate-400 font-mono">0</span>;
+        }
+        return (
+          <span
+            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-bold ${
+              row.violationCount >= 3
+                ? "bg-rose-100 text-rose-700 font-black"
+                : "bg-amber-100 text-amber-800"
+            }`}
+          >
+            <ShieldAlert className="w-3 h-3" />
+            {row.violationCount}
+          </span>
+        );
+      },
+    },
+    {
+      key: "submittedAt",
+      header: "Submitted",
+      sortKey: "submittedAt",
+      align: "right",
+      render: (row) => {
+        const timestamp = row.submittedAt || row.updatedAt;
+        return (
+          <div className="flex items-center justify-end text-xs text-slate-500 font-normal">
+            <Clock className="w-3 h-3 mr-1 text-slate-400" />
+            <LocalTime dateString={timestamp} mode="datetime" className="text-slate-600" />
+          </div>
+        );
+      },
+    },
+  ];
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="mb-8 flex items-center justify-between">
+    <div className="max-w-6xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center">
           <Link
             href={`/teacher/exams/${id}`}
-            className="p-2 hover:bg-gray-200 rounded-full transition-colors mr-4"
+            className="p-2 hover:bg-slate-200 rounded-xl transition-colors mr-3"
+            aria-label="Back to exam details"
           >
-            <ArrowLeft className="w-6 h-6 text-gray-600" />
+            <ArrowLeft className="w-5 h-5 text-slate-600" />
           </Link>
           <div>
-            <h2 className="text-3xl font-bold text-gray-800">Results: {exam.title}</h2>
-            <p className="text-gray-500 font-medium">{exam.batch.name} • {exam._count.questions} Questions</p>
+            <h2 className="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">
+              Results: {exam.title}
+            </h2>
+            <p className="text-slate-500 text-xs font-medium">
+              {exam.batch.name} • {exam._count.questions} Questions
+            </p>
           </div>
         </div>
-        <ResultExporter exam={exam} results={results} />
+
+        {tab === "table" && (
+          <ResultExporter
+            examId={id}
+            examTitle={exam.title}
+            questionsCount={exam._count.questions}
+            totalFiltered={total}
+            filter={filter}
+          />
+        )}
       </div>
 
-      {/* Tabs */}
-      <div className="flex space-x-1 bg-gray-100 p-1 rounded-xl mb-8 w-fit">
+      {/* View Tabs */}
+      <div className="flex space-x-1 bg-slate-100 p-1 rounded-xl w-fit">
         <Link
           href={`/teacher/exams/${id}/results?tab=table`}
-          className={`flex items-center px-6 py-2 rounded-lg font-bold transition-all ${
-            tab === 'table' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+          className={`flex items-center px-5 py-2 rounded-lg text-xs font-bold transition-all ${
+            tab === "table"
+              ? "bg-white text-indigo-600 shadow-sm"
+              : "text-slate-600 hover:text-slate-900"
           }`}
         >
           <Table className="w-4 h-4 mr-2" />
@@ -74,8 +254,10 @@ export default async function ExamResultsPage({
         </Link>
         <Link
           href={`/teacher/exams/${id}/results?tab=analytics`}
-          className={`flex items-center px-6 py-2 rounded-lg font-bold transition-all ${
-            tab === 'analytics' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+          className={`flex items-center px-5 py-2 rounded-lg text-xs font-bold transition-all ${
+            tab === "analytics"
+              ? "bg-white text-indigo-600 shadow-sm"
+              : "text-slate-600 hover:text-slate-900"
           }`}
         >
           <BarChart3 className="w-4 h-4 mr-2" />
@@ -83,69 +265,38 @@ export default async function ExamResultsPage({
         </Link>
       </div>
 
-      {tab === 'analytics' ? (
+      {tab === "analytics" && analytics ? (
         <AnalyticsDashboard analytics={analytics} />
       ) : (
-        <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead className="bg-gray-50 border-b">
-                <tr>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Student</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">PRN</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Correct</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Total Score</th>
-                  <th className="px-6 py-4 text-xs font-bold text-gray-500 uppercase tracking-wider text-right">Last Update</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y text-black font-semibold">
-                {results.length === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-gray-400 font-normal">
-                      No submissions found for this exam yet.
-                    </td>
-                  </tr>
-                ) : (
-                  results.map((res) => (
-                    <tr key={res.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4">
-                        <div>
-                          <div className="font-bold text-black">{res.student.name}</div>
-                          <div className="text-xs text-gray-500 font-normal">{res.student.email}</div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-gray-700 font-bold">{res.student.prn}</td>
-                      <td className="px-6 py-4">
-                        <span className={`px-2 py-1 rounded-full text-xs font-bold uppercase ${
-                          res.status === 'COMPLETED' ? 'bg-green-100 text-green-700' : 
-                          res.status === 'FORCE_SUBMITTED' ? 'bg-red-100 text-red-700 font-extrabold border border-red-200' :
-                          res.status === 'STARTED' ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'
-                        }`}>
-                          {res.status}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center">
-                          <CheckCircle className="w-4 h-4 mr-1 text-green-600" />
-                          {res.correctAnswers} / {exam._count.questions}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-lg font-bold text-blue-600">
-                        {res.totalScore.toFixed(1)}
-                      </td>
-                      <td className="px-6 py-4 text-right text-gray-500 text-sm font-normal">
-                        <div className="flex items-center justify-end">
-                          <Clock className="w-3 h-3 mr-1" />
-                          <LocalTime dateString={res.updatedAt} mode="datetime" className="text-gray-500 font-normal" />
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
+        <div className="space-y-4">
+          <FilterBar defs={filterDefs} />
+
+          <DataTable
+            rows={rows}
+            columns={columns}
+            rowKey={(r) => r.id}
+            emptyState={
+              <EmptyState
+                title="No submissions match your filters"
+                description="Try clearing your search query or expanding the score band and status selections."
+                action={
+                  <Link
+                    href={`/teacher/exams/${id}/results?tab=table`}
+                    className="px-4 py-2 bg-slate-900 text-white font-bold text-xs rounded-xl hover:bg-slate-800 transition-colors inline-block"
+                  >
+                    Reset table filters
+                  </Link>
+                }
+              />
+            }
+          />
+
+          <Pagination
+            total={total}
+            page={page}
+            perPage={perPage}
+            totalPages={totalPages}
+          />
         </div>
       )}
     </div>
