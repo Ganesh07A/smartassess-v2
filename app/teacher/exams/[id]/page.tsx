@@ -1,6 +1,5 @@
 import { prisma } from "@/app/db";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/lib/auth";
+import { requireTeacher, teacherExamScope } from "@/lib/auth/scope";
 import { ArrowLeft, BookOpen, Calendar, Clock, Users, BarChart, Radio, Sparkles, HelpCircle, Code, Check } from "lucide-react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -11,6 +10,7 @@ import EditQuestionModal from "./edit-modal";
 import AIGenerator from "./ai-generator";
 import LocalTime from "@/ui/local-time";
 import { publishExam } from "@/app/actions/exam";
+import { resolveExamStatus } from "@/lib/exams/status";
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +20,7 @@ export default async function ExamDetailsPage({
   params: Promise<{ id: string }> 
 }) {
   const { id } = await params;
-  const session = await getServerSession(authOptions);
+  const teacher = await requireTeacher();
 
   const handlePublish = async () => {
     "use server";
@@ -28,27 +28,12 @@ export default async function ExamDetailsPage({
     redirect(`/teacher/exams/${id}/live`);
   };
 
-  // Fetch teacher's department
-  const teacher = session?.user.id
-    ? await prisma.user.findUnique({
-        where: { id: session.user.id },
-        select: { department: true }
-      })
-    : null;
-  const teacherDept = teacher?.department;
-
   const exam = await prisma.exam.findFirst({
     where: { 
-      id,
-      batch: {
-        OR: [
-          { teacherId: session?.user.id },
-          ...(teacherDept ? [{ 
-            department: teacherDept,
-            teacherId: null
-          }] : [])
-        ]
-      }
+      AND: [
+        { id },
+        teacherExamScope(teacher)
+      ]
     },
     include: {
       batch: true,
@@ -110,17 +95,38 @@ export default async function ExamDetailsPage({
               <Calendar className="w-3.5 h-3.5 mr-1.5 text-slate-400" /> 
               Starts: <LocalTime dateString={exam.startTime} mode="date" className="ml-1" />
             </span>
-            {exam.published ? (
-              <span className="flex items-center px-3 py-1.5 bg-emerald-50 text-emerald-700 font-bold rounded-xl border border-emerald-100/50">
-                <Check className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />
-                Published
-              </span>
-            ) : (
-              <span className="flex items-center px-3 py-1.5 bg-amber-50 text-amber-700 font-bold rounded-xl border border-amber-100/50">
-                <Clock className="w-3.5 h-3.5 mr-1.5 text-amber-500" />
-                Draft
-              </span>
-            )}
+            {(() => {
+              const status = resolveExamStatus(exam);
+              if (status === "ACTIVE") {
+                return (
+                  <span className="flex items-center px-3 py-1.5 bg-emerald-50 text-emerald-700 font-bold rounded-xl border border-emerald-100/50">
+                    <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse mr-1.5" />
+                    Live
+                  </span>
+                );
+              }
+              if (status === "UPCOMING") {
+                return (
+                  <span className="flex items-center px-3 py-1.5 bg-blue-50 text-blue-700 font-bold rounded-xl border border-blue-100/50">
+                    <Clock className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
+                    Upcoming
+                  </span>
+                );
+              }
+              if (status === "EXPIRED") {
+                return (
+                  <span className="flex items-center px-3 py-1.5 bg-slate-100 text-slate-600 font-bold rounded-xl border border-slate-200">
+                    Ended
+                  </span>
+                );
+              }
+              return (
+                <span className="flex items-center px-3 py-1.5 bg-amber-50 text-amber-700 font-bold rounded-xl border border-amber-100/50">
+                  <Clock className="w-3.5 h-3.5 mr-1.5 text-amber-500" />
+                  Draft
+                </span>
+              );
+            })()}
           </div>
         </div>
 

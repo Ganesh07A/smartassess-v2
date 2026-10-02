@@ -151,31 +151,31 @@ model ExamQuestion {
 }
 
 model StudentExamSession {
-  id              String        @id @default(uuid())
+  id              String         @id @default(uuid())
   studentId       String
   examId          String
-  status          SessionStatus @default(NOT_STARTED)
+  status          SessionStatus  @default(NOT_STARTED)
   startTime       DateTime?
   endTime         DateTime?
   questionsOrder  String[]
   optionsMapping  Json?
   currentTimer    Int?
-  tabSwitches     Int           @default(0)
-  isBlurred       Boolean       @default(false)
+  tabSwitches     Int            @default(0)
+  isBlurred       Boolean        @default(false)
   ipAddress       String?
   userAgent       String?
   // Denormalized scoring + proctoring columns so lists can be filtered/sorted in SQL
-  totalScore      Float         @default(0)
-  maxScore        Float         @default(0)
-  percentage      Float         @default(0)
-  violationCount  Int           @default(0)
-  riskScore       Int           @default(0)
+  totalScore      Float          @default(0)
+  maxScore        Float          @default(0)
+  percentage      Float          @default(0)
+  violationCount  Int            @default(0)
+  riskScore       Int            @default(0)
   lastHeartbeatAt DateTime?
   submittedAt     DateTime?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-  exam            Exam          @relation(fields: [examId], references: [id], onDelete: Cascade)
-  student         User          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  exam            Exam           @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student         User           @relation(fields: [studentId], references: [id], onDelete: Cascade)
   submissions     Submission[]
   events          ProctorEvent[]
 
@@ -204,7 +204,9 @@ model Submission {
   @@index([submittedAt])
 }
 
-/** Immutable proctoring audit trail (one row per violation / lifecycle event). */
+/**
+ * Immutable proctoring audit trail (one row per violation / lifecycle event).
+ */
 model ProctorEvent {
   id         String             @id @default(uuid())
   sessionId  String
@@ -219,7 +221,9 @@ model ProctorEvent {
   @@index([severity, occurredAt])
 }
 
-/** Fixed-window rate limiter that works across serverless instances without extra infra. */
+/**
+ * Fixed-window rate limiter that works across serverless instances without extra infra.
+ */
 model RateLimitCounter {
   key         String
   windowStart DateTime

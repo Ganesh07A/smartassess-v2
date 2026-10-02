@@ -1,6 +1,5 @@
 import { prisma } from "@/app/db";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/lib/auth";
+import { requireTeacher, teacherBatchScope } from "@/lib/auth/scope";
 import { 
   Users, 
   BookOpen, 
@@ -12,30 +11,13 @@ import {
   Activity
 } from "lucide-react";
 import Link from "next/link";
+import LocalTime from "@/ui/local-time";
 
 export const dynamic = 'force-dynamic';
 
 export default async function TeacherDashboard() {
-  const session = await getServerSession(authOptions);
-  
-  // Fetch teacher's department
-  const teacher = session?.user.id
-    ? await prisma.user.findUnique({
-        where: { id: session.user.id },
-        select: { department: true }
-      })
-    : null;
-  const teacherDept = teacher?.department;
-
-  const batchFilter = {
-    OR: [
-      { teacherId: session?.user.id },
-      ...(teacherDept ? [{ 
-        department: teacherDept,
-        teacherId: null
-      }] : [])
-    ]
-  };
+  const teacher = await requireTeacher();
+  const batchFilter = teacherBatchScope(teacher);
 
   // Fetch some basic stats
   const [batchesCount, examsCount, totalSubmissions, cheatAlertsAgg] = await Promise.all([
@@ -90,7 +72,7 @@ export default async function TeacherDashboard() {
     <div>
       <header className="mb-8 flex justify-between items-end">
         <div>
-          <h2 className="text-3xl font-bold text-gray-800">Welcome back, {session?.user.name}</h2>
+          <h2 className="text-3xl font-bold text-gray-800">Welcome back, {teacher.name ?? "Teacher"}</h2>
           <p className="text-gray-500 mt-1">Here&apos;s an overview of your active exams and batches.</p>
         </div>
         <Link 
@@ -184,9 +166,8 @@ export default async function TeacherDashboard() {
               <div className="space-y-4">
                 {upcomingExams.map(exam => (
                   <div key={exam.id} className="flex items-center p-5 rounded-2xl border border-dashed border-gray-200">
-                    <div className="bg-purple-50 text-purple-700 rounded-xl p-3 text-center min-w-[70px] mr-5">
-                      <div className="text-xs font-black uppercase">{exam.startTime.toLocaleString('default', { month: 'short' })}</div>
-                      <div className="text-2xl font-black">{exam.startTime.getDate()}</div>
+                    <div className="bg-purple-50 text-purple-700 rounded-xl p-3 text-center min-w-[70px] mr-5 flex flex-col justify-center items-center">
+                      <LocalTime dateString={exam.startTime} mode="date" className="text-xs font-black uppercase text-purple-700 text-center" />
                     </div>
                     <div className="flex-1">
                       <div className="font-bold text-gray-800 mb-1">{exam.title}</div>
@@ -195,7 +176,7 @@ export default async function TeacherDashboard() {
                         {exam.batch.name}
                         <span className="mx-2">•</span>
                         <Clock className="w-3.5 h-3.5 mr-1" />
-                        {exam.startTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                        <LocalTime dateString={exam.startTime} mode="time" className="text-xs font-semibold text-gray-500" />
                       </div>
                     </div>
                     <Link 

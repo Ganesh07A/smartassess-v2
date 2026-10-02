@@ -106,12 +106,12 @@ export default async function ExamResultPage({
               <CertificateDownloader 
                 certificate={certificate}
                 student={examSession.student}
-                exam={exam}
+                exam={{ title: exam.title }}
               />
             )}
             <StudentResultExporter 
               student={examSession.student}
-              exam={exam}
+              exam={{ title: exam.title, batch: { name: exam.batch.name } }}
               score={earnedPoints}
               totalPoints={totalPoints}
               percentage={percentage}

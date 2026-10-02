@@ -1,7 +1,6 @@
 import { getExamResults, getExamAnalytics } from "@/app/actions/exam";
 import { prisma } from "@/app/db";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/lib/auth";
+import { requireTeacher, teacherExamScope } from "@/lib/auth/scope";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, CheckCircle, Clock, Table, BarChart3 } from "lucide-react";
@@ -20,29 +19,14 @@ export default async function ExamResultsPage({
 }) {
   const { id } = await params;
   const { tab = "table" } = await searchParams;
-  const session = await getServerSession(authOptions);
-  
-  // Fetch teacher's department
-  const teacher = session?.user.id
-    ? await prisma.user.findUnique({
-        where: { id: session.user.id },
-        select: { department: true }
-      })
-    : null;
-  const teacherDept = teacher?.department;
+  const teacher = await requireTeacher();
 
   const exam = await prisma.exam.findFirst({
     where: { 
-      id,
-      batch: {
-        OR: [
-          { teacherId: session?.user.id },
-          ...(teacherDept ? [{ 
-            department: teacherDept,
-            teacherId: null
-          }] : [])
-        ]
-      }
+      AND: [
+        { id },
+        teacherExamScope(teacher)
+      ]
     },
     include: {
       batch: true,
