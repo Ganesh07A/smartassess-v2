@@ -1,7 +1,6 @@
 import { prisma } from "@/app/db";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/lib/auth";
-import { notFound, redirect } from "next/navigation";
+import { requireTeacher, teacherExamScope } from "@/lib/auth/scope";
+import { notFound } from "next/navigation";
 import LiveDashboard from "./live-dashboard";
 import Link from "next/link";
 import { ArrowLeft, Radio } from "lucide-react";
@@ -14,33 +13,14 @@ export default async function LiveMonitorPage({
   params: Promise<{ id: string }> 
 }) {
   const { id } = await params;
-  const session = await getServerSession(authOptions);
-
-  if (!session || session.user.role !== "TEACHER") {
-    redirect("/login");
-  }
-
-  // Fetch teacher's department
-  const teacher = session?.user.id
-    ? await prisma.user.findUnique({
-        where: { id: session.user.id },
-        select: { department: true }
-      })
-    : null;
-  const teacherDept = teacher?.department;
+  const teacher = await requireTeacher();
 
   const exam = await prisma.exam.findFirst({
     where: { 
-      id,
-      batch: {
-        OR: [
-          { teacherId: session.user.id },
-          ...(teacherDept ? [{ 
-            department: teacherDept,
-            teacherId: null
-          }] : [])
-        ]
-      }
+      AND: [
+        { id },
+        teacherExamScope(teacher)
+      ]
     },
     include: {
       batch: true,
@@ -54,9 +34,10 @@ export default async function LiveMonitorPage({
     notFound();
   }
 
-  // Fetch initial student sessions
+  // Fetch initial student sessions (bounded)
   const studentSessions = await prisma.studentExamSession.findMany({
     where: { examId: id },
+    take: 200,
     include: {
       student: {
         select: { name: true, prn: true }

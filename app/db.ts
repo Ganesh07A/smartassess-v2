@@ -6,23 +6,33 @@ import pg from "pg";
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
 const connectionString = process.env.DATABASE_URL;
+const isProductionRuntime = process.env.NODE_ENV === "production" && process.env.NEXT_PHASE !== "phase-production-build";
 
 export const prisma =
   globalForPrisma.prisma ||
   (() => {
-    const dummyUrl = "postgresql://postgres:postgres@localhost:5432/postgres";
     if (!connectionString) {
-      console.warn("DATABASE_URL is missing. Using a dummy Prisma client for build.");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return new PrismaClient({ datasources: { db: { url: dummyUrl } } } as any);
+      // Fail loudly at startup instead of silently booting against a dummy database and then
+      // throwing confusing errors on the first query.
+      if (isProductionRuntime) {
+        throw new Error(
+          "DATABASE_URL is not configured. Set it in the deployment environment before starting the app.",
+        );
+      }
+      console.warn("DATABASE_URL is missing. Using a dummy Prisma client for build/development.");
+      const dummyClient = new PrismaClient({
+        datasources: { db: { url: "postgresql://postgres:postgres@localhost:5432/postgres" } },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
+      return dummyClient;
     }
-    if (connectionString?.startsWith("prisma+postgres://")) {
+    if (connectionString.startsWith("prisma+postgres://")) {
       // For Prisma Postgres, we don't use the pg adapter directly
       return new PrismaClient({
-        log: ["query"],
+        log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
       });
     } else {
-      const pool = new pg.Pool({ 
+      const pool = new pg.Pool({
         connectionString,
         max: process.env.NODE_ENV === "production" ? 2 : 10, // Max 2 connections in production serverless to prevent Neon connection limit exhaustion
         idleTimeoutMillis: 15000, // Close idle connections faster (15s) to free resources

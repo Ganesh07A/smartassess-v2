@@ -65,6 +65,13 @@ export default function NewExamForm({ batches }: { batches: Batch[] }) {
       return;
     }
 
+    // The exam window closes at End Time, so a longer duration would never be usable.
+    if (formData.duration * 60_000 > end.getTime() - start.getTime()) {
+      setError("Duration cannot be longer than the time between Start Time and End Time.");
+      setLoading(false);
+      return;
+    }
+
     try {
       const exam = await createExam({
         ...formData,

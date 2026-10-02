@@ -11,7 +11,7 @@ import {
   Send,
   Layers
 } from "lucide-react";
-import { saveSubmission, submitExam, logTabSwitch, updateBlurState } from "@/app/actions/exam";
+import { saveSubmission, submitExam, logProctorEvent, updateBlurState, heartbeat } from "@/app/actions/exam";
 import { runCode } from "@/app/actions/judge0";
 import { useRouter } from "next/navigation";
 import Editor from "@monaco-editor/react";
@@ -88,11 +88,11 @@ export default function ExamClient({
   const activeSavesRef = useRef(0);
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionResult, setExecutionResult] = useState<{
-    status?: { id: number; description: string };
-    message?: string;
-    stdout?: string;
-    stderr?: string;
-    compile_output?: string;
+    status?: { id: number; description: string } | null;
+    message?: string | null;
+    stdout?: string | null;
+    stderr?: string | null;
+    compile_output?: string | null;
   } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
@@ -294,7 +294,14 @@ export default function ExamClient({
     const handleTabViolation = async (reason: string) => {
       setIsBlurred(true);
       try {
-        const res = await logTabSwitch(session.id);
+        // Each event type is recorded separately so the invigilator gets a real timeline.
+        const type =
+          reason === "Exited Fullscreen"
+            ? "FULLSCREEN_EXIT"
+            : reason === "Window Focus Lost"
+              ? "TAB_BLUR"
+              : "TAB_BLUR";
+        const res = await logProctorEvent({ sessionId: session.id, type, metadata: { reason } });
         if (res) {
           setTabSwitches(res.tabSwitches);
           const remaining = Math.max(0, 3 - res.tabSwitches);
@@ -326,9 +333,19 @@ export default function ExamClient({
       }
     };
 
+    let lastClipboardReport = 0;
     const preventClipboard = (e: ClipboardEvent) => {
       e.preventDefault();
       toast.warning("Warning: Clipboard action blocked. Do not copy, paste, or cut during the exam.");
+      const now = Date.now();
+      if (now - lastClipboardReport > 10_000) {
+        lastClipboardReport = now;
+        void logProctorEvent({
+          sessionId: session.id,
+          type: "CLIPBOARD_ATTEMPT",
+          metadata: { action: e.type },
+        }).catch(() => undefined);
+      }
     };
 
     const preventContextMenu = (e: MouseEvent) => {
@@ -341,15 +358,29 @@ export default function ExamClient({
       return e.returnValue;
     };
 
+    let lastDevtoolsReport = 0;
+    const reportDevtoolsAttempt = () => {
+      const now = Date.now();
+      if (now - lastDevtoolsReport < 10_000) return;
+      lastDevtoolsReport = now;
+      void logProctorEvent({
+        sessionId: session.id,
+        type: "DEVTOOLS_ATTEMPT",
+        metadata: { shortcut: "keyboard" },
+      }).catch(() => undefined);
+    };
+
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "F12") {
         e.preventDefault();
         toast.warning("Warning: Action blocked. Developer tools (F12) are disabled. Do not do that.");
+        reportDevtoolsAttempt();
         return;
       }
       if (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "J" || e.key === "C" || e.key === "i" || e.key === "j" || e.key === "c")) {
         e.preventDefault();
         toast.warning("Warning: Action blocked. Developer tools are disabled. Do not do that.");
+        reportDevtoolsAttempt();
         return;
       }
       if (e.ctrlKey && (e.key === "U" || e.key === "u")) {
@@ -413,6 +444,16 @@ export default function ExamClient({
       window.removeEventListener("blur", handleWindowBlur);
     };
   }, [session.id, exam.id, router]);
+
+  // Liveness beacon: lets the live monitor flag abandoned/closed sessions.
+  useEffect(() => {
+    const sendHeartbeat = () => {
+      void heartbeat(session.id).catch(() => undefined);
+    };
+    sendHeartbeat();
+    const timer = setInterval(sendHeartbeat, 20_000);
+    return () => clearInterval(timer);
+  }, [session.id]);
 
   // Show welcome warning toast on start
   useEffect(() => {

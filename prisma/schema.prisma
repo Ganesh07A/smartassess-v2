@@ -45,6 +45,7 @@ model Account {
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@index([userId])
 }
 
 model Session {
@@ -53,6 +54,8 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model VerificationToken {
@@ -73,25 +76,42 @@ model Batch {
   exams      Exam[]
   students   User[]   @relation("StudentBatches")
   department String?
+
+  @@index([teacherId])
+  @@index([department])
+  @@index([createdAt])
 }
 
 model Exam {
-  id           String               @id @default(uuid())
-  title        String
-  description  String?
-  startTime    DateTime
-  endTime      DateTime
-  duration     Int
-  batchId      String
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
-  allowRunCode Boolean              @default(true)
-  shuffleOptions Boolean            @default(true)
-  published    Boolean              @default(false)
-  batch        Batch                @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  questions    ExamQuestion[]
-  sessions     StudentExamSession[]
-  certificates Certificate[]
+  id                String               @id @default(uuid())
+  title             String
+  description       String?
+  startTime         DateTime
+  endTime           DateTime
+  duration          Int
+  batchId           String
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  allowRunCode      Boolean              @default(true)
+  shuffleOptions    Boolean              @default(true)
+  published         Boolean              @default(false)
+  // Filtering & lifecycle foundations
+  status            ExamStatus           @default(DRAFT)
+  examCode          String?              @unique
+  resultsReleasedAt DateTime?
+  answerReveal      AnswerRevealPolicy   @default(AFTER_EXAM_END)
+  proctoring        Json                 @default("{}")
+  negativeMarking   Float                @default(0)
+  subjects          String[]             @default([])
+  batch             Batch                @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  questions         ExamQuestion[]
+  sessions          StudentExamSession[]
+  certificates      Certificate[]
+
+  @@index([batchId, startTime])
+  @@index([published, startTime])
+  @@index([status])
+  @@index([endTime])
 }
 
 model Question {
@@ -102,9 +122,19 @@ model Question {
   correctAnswer String?
   testCases     Json?
   points        Float          @default(1.0)
+  // Question-bank metadata (used by filters, analytics and paper generation)
+  difficulty    Difficulty     @default(MEDIUM)
+  topic         String?
+  tags          String[]       @default([])
+  bloomLevel    String?
+  explanation   String?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   exams         ExamQuestion[]
+
+  @@index([difficulty, topic])
+  @@index([type, difficulty])
+  @@index([tags])
 }
 
 model ExamQuestion {
@@ -117,29 +147,44 @@ model ExamQuestion {
   question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
 
   @@unique([examId, questionId])
+  @@index([examId, order])
 }
 
 model StudentExamSession {
-  id             String        @id @default(uuid())
-  studentId      String
-  examId         String
-  status         SessionStatus @default(NOT_STARTED)
-  startTime      DateTime?
-  endTime        DateTime?
-  questionsOrder String[]
-  optionsMapping Json?
-  currentTimer   Int?
-  tabSwitches    Int           @default(0)
-  isBlurred      Boolean       @default(false)
-  ipAddress      String?
-  userAgent      String?
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
-  exam           Exam          @relation(fields: [examId], references: [id], onDelete: Cascade)
-  student        User          @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  submissions    Submission[]
+  id              String         @id @default(uuid())
+  studentId       String
+  examId          String
+  status          SessionStatus  @default(NOT_STARTED)
+  startTime       DateTime?
+  endTime         DateTime?
+  questionsOrder  String[]
+  optionsMapping  Json?
+  currentTimer    Int?
+  tabSwitches     Int            @default(0)
+  isBlurred       Boolean        @default(false)
+  ipAddress       String?
+  userAgent       String?
+  // Denormalized scoring + proctoring columns so lists can be filtered/sorted in SQL
+  totalScore      Float          @default(0)
+  maxScore        Float          @default(0)
+  percentage      Float          @default(0)
+  violationCount  Int            @default(0)
+  riskScore       Int            @default(0)
+  lastHeartbeatAt DateTime?
+  submittedAt     DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  exam            Exam           @relation(fields: [examId], references: [id], onDelete: Cascade)
+  student         User           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  submissions     Submission[]
+  events          ProctorEvent[]
 
   @@unique([studentId, examId])
+  @@index([examId, percentage])
+  @@index([examId, violationCount])
+  @@index([examId, status])
+  @@index([examId, lastHeartbeatAt])
+  @@index([examId, updatedAt])
 }
 
 model Submission {
@@ -155,6 +200,37 @@ model Submission {
   session       StudentExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@unique([sessionId, questionId])
+  @@index([questionId])
+  @@index([submittedAt])
+}
+
+/**
+ * Immutable proctoring audit trail (one row per violation / lifecycle event).
+ */
+model ProctorEvent {
+  id         String             @id @default(uuid())
+  sessionId  String
+  type       ProctorEventType
+  severity   Int                @default(1)
+  metadata   Json?
+  occurredAt DateTime           @default(now())
+  session    StudentExamSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, occurredAt])
+  @@index([type, occurredAt])
+  @@index([severity, occurredAt])
+}
+
+/**
+ * Fixed-window rate limiter that works across serverless instances without extra infra.
+ */
+model RateLimitCounter {
+  key         String
+  windowStart DateTime
+  count       Int      @default(0)
+
+  @@id([key, windowStart])
+  @@index([windowStart])
 }
 
 enum Role {
@@ -175,6 +251,42 @@ enum SessionStatus {
   FORCE_SUBMITTED
 }
 
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum ExamStatus {
+  DRAFT
+  UPCOMING
+  ACTIVE
+  EXPIRED
+  ARCHIVED
+}
+
+enum AnswerRevealPolicy {
+  NEVER
+  AFTER_EXAM_END
+  AFTER_RELEASE
+  IMMEDIATELY
+}
+
+enum ProctorEventType {
+  EXAM_STARTED
+  EXAM_SUBMITTED
+  FORCE_SUBMITTED
+  TAB_BLUR
+  FULLSCREEN_EXIT
+  CLIPBOARD_ATTEMPT
+  DEVTOOLS_ATTEMPT
+  HEARTBEAT_MISSED
+  DUPLICATE_TAB
+  IP_COLLISION
+  TIME_EXTENDED
+  TEACHER_MESSAGE
+}
+
 model Certificate {
   id               String   @id @default(uuid())
   certificateId    String   @unique // Example: SA-2026-0001
@@ -191,4 +303,6 @@ model Certificate {
   updatedAt        DateTime @updatedAt
 
   @@unique([studentId, examId])
+  @@index([examId])
+  @@index([issueDate])
 }

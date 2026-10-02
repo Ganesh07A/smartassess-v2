@@ -1,8 +1,10 @@
 
 "use server";
 
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/lib/auth";
+import { requireTeacher, requireUser } from "@/lib/auth/scope";
+import { parseInput } from "@/lib/validation/parse";
+import { explainCodeSchema, generateQuestionsSchema } from "@/lib/validation/schemas";
+import { rateLimits } from "@/lib/rate-limit";
 
 async function callOpenRouter(messages: { role: string; content: string }[], jsonMode: boolean = false) {
   const apiKey = process.env.OPENROUTER_API_KEY;
@@ -10,16 +12,18 @@ async function callOpenRouter(messages: { role: string; content: string }[], jso
     throw new Error("AI Configuration missing (OPENROUTER_API_KEY)");
   }
 
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL;
+
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
       "Authorization": `Bearer ${apiKey}`,
-      "HTTP-Referer": "http://localhost:3000",
+      ...(appUrl ? { "HTTP-Referer": appUrl } : {}),
       "X-Title": "SmartAssess",
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "openrouter/auto",
+      model: process.env.OPENROUTER_MODEL || "openrouter/auto",
       messages: messages,
       // Note: Not all free models support strict JSON mode, so we rely on prompting + parsing
       response_format: jsonMode ? { type: "json_object" } : undefined,
@@ -38,12 +42,11 @@ async function callOpenRouter(messages: { role: string; content: string }[], jso
 
 export async function generateAIQuestions(prompt: string, count: number = 5) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== "TEACHER") {
-      throw new Error("Unauthorized: Please log in as a teacher.");
-    }
+    const teacher = await requireTeacher();
+    const input = parseInput(generateQuestionsSchema, { prompt, count });
+    await rateLimits.aiGeneration(teacher.id);
 
-    return await generateAIQuestionsInternal(prompt, count);
+    return await generateAIQuestionsInternal(input.prompt, input.count);
   } catch (error: unknown) {
     const err = error as Error;
     console.error("Critical AI Action Error:", err);
@@ -51,7 +54,8 @@ export async function generateAIQuestions(prompt: string, count: number = 5) {
   }
 }
 
-export async function generateAIQuestionsInternal(prompt: string, count: number = 5) {
+/** Internal helper: NOT exported, so it cannot be invoked as a public server action. */
+async function generateAIQuestionsInternal(prompt: string, count: number = 5) {
   const systemPrompt = `
     You are an expert examiner. Your task is to generate EXACTLY ${count} multiple-choice questions (MCQs) based on the provided text.
     
@@ -166,19 +170,18 @@ export async function explainCodeSubmission(
   pointsAwarded: number, 
   totalPoints: number
 ) {
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    throw new Error("Unauthorized");
-  }
+  const user = await requireUser();
+  const input = parseInput(explainCodeSchema, { questionContent, code, pointsAwarded, totalPoints });
+  await rateLimits.aiExplain(user.id);
 
   const prompt = `
     You are an expert programming tutor. A student has submitted code for a coding problem.
-    Problem: ${questionContent}
+    Problem: ${input.questionContent}
     Student's Submission:
     \`\`\`
-    ${code}
+    ${input.code}
     \`\`\`
-    Score: ${pointsAwarded} / ${totalPoints}
+    Score: ${input.pointsAwarded} / ${input.totalPoints}
 
     Provide a concise, encouraging, and highly technical feedback.
     Identify:

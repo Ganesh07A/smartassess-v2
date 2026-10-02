@@ -65,6 +65,7 @@ export default function BulkUpload({ examId }: { examId: string }) {
           testCases?: { input: string; output: string }[];
           points: number;
         }[] = [];
+        const skippedRows: string[] = [];
 
         // Parse all sheets in the workbook to be highly flexible and robust
         for (const sheetName of wb.SheetNames) {
@@ -105,16 +106,35 @@ export default function BulkUpload({ examId }: { examId: string }) {
               type === "MCQ" ||
               (!type && (correctAnswerVal !== undefined || optionAVal !== undefined))
             ) {
+              // Drop blank options and validate the key here so a malformed row is reported to the
+              // teacher instead of being rejected later by server-side validation.
+              const options: Record<string, string> = {};
+              (
+                [
+                  ["A", optionAVal],
+                  ["B", optionBVal],
+                  ["C", optionCVal],
+                  ["D", optionDVal],
+                ] as const
+              ).forEach(([key, value]) => {
+                const text = (value !== undefined ? String(value) : "").trim();
+                if (text) options[key] = text;
+              });
+
+              const correctAnswer = (correctAnswerVal !== undefined ? String(correctAnswerVal) : "")
+                .trim()
+                .toUpperCase();
+
+              if (Object.keys(options).length < 2 || !(correctAnswer in options)) {
+                skippedRows.push(`"${content.slice(0, 40)}…" (MCQ needs ≥2 options and a valid answer key)`);
+                return;
+              }
+
               allQuestions.push({
                 type: "MCQ",
                 content,
-                options: {
-                  A: (optionAVal !== undefined ? String(optionAVal) : "").trim(),
-                  B: (optionBVal !== undefined ? String(optionBVal) : "").trim(),
-                  C: (optionCVal !== undefined ? String(optionCVal) : "").trim(),
-                  D: (optionDVal !== undefined ? String(optionDVal) : "").trim(),
-                },
-                correctAnswer: (correctAnswerVal !== undefined ? String(correctAnswerVal) : "").trim().toUpperCase(),
+                options,
+                correctAnswer,
                 points,
               });
             } else if (
@@ -140,10 +160,19 @@ export default function BulkUpload({ examId }: { examId: string }) {
                 testCases = rawCases as { input: string; output: string }[];
               }
 
+              const validTestCases = (Array.isArray(testCases) ? testCases : []).filter(
+                (testCase) => testCase.input?.trim() && testCase.output?.trim(),
+              );
+
+              if (validTestCases.length === 0) {
+                skippedRows.push(`"${content.slice(0, 40)}…" (coding question needs at least one test case)`);
+                return;
+              }
+
               allQuestions.push({
                 type: "CODING",
                 content,
-                testCases: Array.isArray(testCases) ? testCases : [],
+                testCases: validTestCases,
                 points,
               });
             }
@@ -151,11 +180,23 @@ export default function BulkUpload({ examId }: { examId: string }) {
         }
 
         if (allQuestions.length === 0) {
-          throw new Error("No questions found in the file. Please ensure sheet names or columns match the template.");
+          throw new Error(
+            skippedRows.length > 0
+              ? `No valid questions found. Skipped ${skippedRows.length} row(s): ${skippedRows.slice(0, 3).join(", ")}`
+              : "No questions found in the file. Please ensure sheet names or columns match the template.",
+          );
         }
 
         await uploadQuestions(examId, allQuestions);
-        setStatus({ type: "success", message: `Successfully uploaded ${allQuestions.length} questions.` });
+        setStatus({
+          type: "success",
+          message:
+            skippedRows.length > 0
+              ? `Uploaded ${allQuestions.length} questions. Skipped ${skippedRows.length} invalid row(s): ${skippedRows
+                  .slice(0, 3)
+                  .join(", ")}${skippedRows.length > 3 ? "…" : ""}`
+              : `Successfully uploaded ${allQuestions.length} questions.`,
+        });
       } catch (err) {
         const errorMsg = err instanceof Error ? err.message : "Failed to parse or upload file.";
         setStatus({ type: "error", message: errorMsg });

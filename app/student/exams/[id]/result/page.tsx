@@ -59,9 +59,35 @@ export default async function ExamResultPage({
     redirect(`/student/exams/${id}`);
   }
 
-  const totalPoints = exam.questions.reduce((sum, q) => sum + q.points, 0);
-  const earnedPoints = examSession.submissions.reduce((sum, sub) => sum + (sub.pointsAwarded || 0), 0);
-  const percentage = (earnedPoints / totalPoints) * 100;
+  // Prefer the denormalized totals written at submit time; fall back for legacy rows.
+  const computedTotalPoints = exam.questions.reduce((sum, q) => sum + q.points, 0);
+  const totalPoints = examSession.maxScore > 0 ? examSession.maxScore : computedTotalPoints;
+  const earnedPoints =
+    examSession.maxScore > 0
+      ? examSession.totalScore
+      : examSession.submissions.reduce((sum, sub) => sum + (sub.pointsAwarded || 0), 0);
+  const percentage =
+    examSession.maxScore > 0 ? examSession.percentage : totalPoints > 0 ? (earnedPoints / totalPoints) * 100 : 0;
+
+  // Answer-key release policy: never show the correct option while other students may still be
+  // taking the exam (or before the teacher explicitly releases results).
+  const now = new Date();
+  const canRevealAnswers =
+    exam.answerReveal === "IMMEDIATELY" ||
+    (exam.answerReveal === "AFTER_EXAM_END" && now > new Date(exam.endTime)) ||
+    (exam.answerReveal === "AFTER_RELEASE" &&
+      exam.resultsReleasedAt !== null &&
+      now >= new Date(exam.resultsReleasedAt));
+
+  const sanitizedQuestions = exam.questions.map((examQuestion) => ({
+    questionId: examQuestion.questionId,
+    question: { content: examQuestion.question.content, type: examQuestion.question.type },
+  }));
+  const sanitizedSubmissions = examSession.submissions.map((submission) => ({
+    questionId: submission.questionId,
+    isCorrect: submission.isCorrect,
+    pointsAwarded: submission.pointsAwarded,
+  }));
 
   return (
     <div className="min-h-screen bg-gray-50 p-8 pb-20">
@@ -80,17 +106,17 @@ export default async function ExamResultPage({
               <CertificateDownloader 
                 certificate={certificate}
                 student={examSession.student}
-                exam={exam}
+                exam={{ title: exam.title }}
               />
             )}
             <StudentResultExporter 
               student={examSession.student}
-              exam={exam}
+              exam={{ title: exam.title, batch: { name: exam.batch.name } }}
               score={earnedPoints}
               totalPoints={totalPoints}
               percentage={percentage}
-              questions={exam.questions}
-              submissions={examSession.submissions}
+              questions={sanitizedQuestions}
+              submissions={sanitizedSubmissions}
             />
           </div>
         </div>
@@ -153,7 +179,7 @@ export default async function ExamResultPage({
                         </div>
 
                         {/* MCQ Specific Comparison */}
-                        {q.type === "MCQ" && (
+                        {q.type === "MCQ" && canRevealAnswers && (
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                             <div className={`p-4 rounded-xl border ${isCorrect ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
                               <div className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-60">Your Answer</div>
@@ -170,6 +196,12 @@ export default async function ExamResultPage({
                               </div>
                             </div>
                           </div>
+                        )}
+
+                        {q.type === "MCQ" && !canRevealAnswers && (
+                          <p className="mt-4 text-xs font-semibold text-gray-400">
+                            Your answer is recorded. The correct option will be shown once the exam window closes.
+                          </p>
                         )}
 
                         {/* Coding Specific Status */}
