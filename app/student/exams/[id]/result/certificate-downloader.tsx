@@ -11,6 +11,8 @@ interface CertificateDownloaderProps {
     issueDate: Date;
     grade: string | null;
     verificationCode: string | null;
+    revokedAt?: Date | string | null;
+    revokedReason?: string | null;
   };
   student: {
     name: string | null;
@@ -28,7 +30,13 @@ export default function CertificateDownloader({
 }: CertificateDownloaderProps) {
   const [isGenerating, setIsGenerating] = useState(false);
 
+  const isRevoked = Boolean(certificate.revokedAt);
+
   const generatePDF = () => {
+    if (isRevoked) {
+      toast.error("This certificate has been revoked and cannot be downloaded.");
+      return;
+    }
     setIsGenerating(true);
 
     const proceedWithPDF = (logoImg?: HTMLImageElement) => {
@@ -211,6 +219,19 @@ export default function CertificateDownloader({
       proceedWithPDF();
     };
   };
+
+  if (isRevoked) {
+    return (
+      <div className="inline-flex flex-col sm:flex-row items-start sm:items-center gap-2 px-5 py-2.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-xl text-xs font-bold">
+        <span>Certificate Revoked</span>
+        {certificate.revokedReason && (
+          <span className="text-[11px] text-rose-500 font-normal font-mono">
+            Reason: {certificate.revokedReason}
+          </span>
+        )}
+      </div>
+    );
+  }
 
   return (
     <button
