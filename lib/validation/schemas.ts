@@ -26,6 +26,13 @@ const isoDate = z.union([z.date(), z.string().min(4).max(64)]).transform((value,
 
 /* ------------------------------------------------------------------ exams */
 
+export const answerRevealSchema = z.enum([
+  "NEVER",
+  "AFTER_EXAM_END",
+  "AFTER_RELEASE",
+  "IMMEDIATELY",
+]);
+
 export const createExamSchema = z
   .object({
     title: shortText,
@@ -38,6 +45,7 @@ export const createExamSchema = z
     shuffleOptions: z.boolean().optional(),
     negativeMarking: z.coerce.number().min(0).max(10).optional(),
     subjects: z.array(z.string().trim().min(1).max(60)).max(20).optional(),
+    answerReveal: answerRevealSchema.optional(),
     proctoring: z
       .object({
         maxTabSwitches: z.coerce.number().int().min(1).max(20).optional(),
@@ -57,6 +65,43 @@ export const createExamSchema = z
   });
 
 export type CreateExamInput = z.infer<typeof createExamSchema>;
+
+export const updateExamSettingsSchema = z
+  .object({
+    title: shortText.optional(),
+    description: z.string().trim().max(2000).optional().nullable(),
+    startTime: isoDate.optional(),
+    endTime: isoDate.optional(),
+    duration: z.coerce.number().int().min(1).max(600).optional(),
+    allowRunCode: z.boolean().optional(),
+    shuffleOptions: z.boolean().optional(),
+    negativeMarking: z.coerce.number().min(0).max(10).optional(),
+    subjects: z.array(z.string().trim().min(1).max(60)).max(20).optional(),
+    answerReveal: answerRevealSchema.optional(),
+    proctoring: z
+      .object({
+        maxTabSwitches: z.coerce.number().int().min(1).max(20).optional(),
+        blockClipboard: z.boolean().optional(),
+        requireFullscreen: z.boolean().optional(),
+      })
+      .partial()
+      .optional(),
+    resultsReleasedAt: z.union([isoDate, z.null()]).optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.startTime && data.endTime) {
+        return data.startTime.getTime() < data.endTime.getTime();
+      }
+      return true;
+    },
+    {
+      message: "The start time must be before the end time.",
+      path: ["endTime"],
+    },
+  );
+
+export type UpdateExamSettingsInput = z.infer<typeof updateExamSettingsSchema>;
 
 /* -------------------------------------------------------------- questions */
 

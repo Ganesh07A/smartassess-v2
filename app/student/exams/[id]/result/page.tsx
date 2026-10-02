@@ -3,11 +3,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/lib/auth";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { CheckCircle, XCircle, Award, ArrowLeft, BookOpen, AlertCircle, HelpCircle } from "lucide-react";
+import { CheckCircle, XCircle, Award, ArrowLeft, BookOpen, AlertCircle, HelpCircle, Layers } from "lucide-react";
 import StudentResultExporter from "./student-result-exporter";
 import AIExplainer from "./ai-explainer";
 import CertificateDownloader from "./certificate-downloader";
 import { getCertificate } from "@/app/actions/certificate";
+import { buildStudentTopicBreakdown } from "@/lib/analytics/topics";
 
 export default async function ExamResultPage({ 
   params 
@@ -150,10 +151,83 @@ export default async function ExamResultPage({
               </div>
             </div>
 
+            {/* Individual Student Topic Mastery (§7.2) */}
+            {(() => {
+              const topicBreakdown = buildStudentTopicBreakdown({
+                questions: exam.questions.map((eq) => ({
+                  questionId: eq.questionId,
+                  points: eq.points,
+                  topic: eq.question.topic,
+                })),
+                submissions: examSession.submissions.map((sub) => ({
+                  questionId: sub.questionId,
+                  pointsAwarded: sub.pointsAwarded,
+                })),
+              });
+
+              if (topicBreakdown.length === 0) return null;
+
+              return (
+                <div className="mb-12 bg-white rounded-2xl border p-6 space-y-4 shadow-xs">
+                  <div className="flex items-center justify-between pb-3 border-b">
+                    <div className="flex items-center gap-2">
+                      <Layers className="w-5 h-5 text-indigo-600" />
+                      <h3 className="font-bold text-gray-900 text-sm">Topic Mastery Breakdown</h3>
+                    </div>
+                    <span className="text-[11px] text-gray-400 font-medium">Weakest topics listed first</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {topicBreakdown.map((t) => (
+                      <div key={t.topic} className="p-3.5 rounded-xl border bg-gray-50/50 space-y-2">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="text-xs font-bold text-gray-800 flex items-center gap-1.5">
+                              <span>{t.topic}</span>
+                              {t.lowConfidence && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-700">
+                                  Low confidence (&lt; 3 items)
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-gray-400">
+                              {t.earnedPoints} / {t.maxPoints} pts ({t.itemCount} question{t.itemCount > 1 ? "s" : ""})
+                            </div>
+                          </div>
+                          <span className="font-bold text-xs text-gray-900">{t.percentage.toFixed(0)}%</span>
+                        </div>
+
+                        <div className="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${
+                              t.percentage >= 70 ? "bg-green-500" : t.percentage >= 40 ? "bg-blue-500" : "bg-red-500"
+                            }`}
+                            style={{ width: `${Math.min(100, t.percentage)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             <h2 className="text-xl font-bold text-gray-800 mb-6 flex items-center">
               <BookOpen className="w-5 h-5 mr-2 text-blue-600" />
               Detailed Review
             </h2>
+
+            {!canRevealAnswers && (
+              <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-2xl flex items-start gap-3 text-xs text-blue-800">
+                <AlertCircle className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-blue-900">Results Under Review</p>
+                  <p className="mt-0.5 leading-relaxed text-blue-700">
+                    Your answers are saved securely. Your teacher will release detailed scores, answer keys, and explanations once grading is finalized.
+                  </p>
+                </div>
+              </div>
+            )}
 
             <div className="space-y-6">
               {exam.questions.map((eq, idx) => {
@@ -162,7 +236,7 @@ export default async function ExamResultPage({
                 const q = eq.question;
                 
                 return (
-                  <div key={eq.id} className="rounded-2xl border bg-white overflow-hidden">
+                  <div key={eq.id} id={`question-${eq.questionId}`} className="rounded-2xl border bg-white overflow-hidden scroll-mt-6">
                     <div className="p-6 flex items-start">
                       <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center font-bold text-gray-500 mr-4 flex-shrink-0">
                         {idx + 1}

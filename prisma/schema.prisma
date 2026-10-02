@@ -297,12 +297,16 @@ model Certificate {
   verificationCode String?  @unique
   grade            String?
   score            Float?
-  student          User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  exam             Exam     @relation(fields: [examId], references: [id], onDelete: Cascade)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  revokedAt        DateTime?
+  revokedReason    String?
+  revokedById      String?
+  student          User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  exam             Exam      @relation(fields: [examId], references: [id], onDelete: Cascade)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@unique([studentId, examId])
   @@index([examId])
   @@index([issueDate])
+  @@index([revokedAt])
 }

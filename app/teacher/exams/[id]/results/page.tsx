@@ -4,10 +4,11 @@ import { prisma } from "@/app/db";
 import { requireTeacher, teacherExamScope } from "@/lib/auth/scope";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle, Clock, Table, BarChart3, ShieldAlert } from "lucide-react";
+import { ArrowLeft, CheckCircle, Clock, Table, BarChart3, ShieldAlert, EyeOff } from "lucide-react";
 import ResultExporter from "./result-exporter";
 import LocalTime from "@/ui/local-time";
 import AnalyticsDashboard from "./analytics-dashboard";
+import { ReleaseResultsButton } from "@/ui/exams/release-results-button";
 import { readParams } from "@/lib/filters/parse";
 import { resultFilterSchema } from "@/lib/filters/schemas";
 import { FilterBar, type FilterDef } from "@/ui/filters/filter-bar";
@@ -239,6 +240,29 @@ export default async function ExamResultsPage({
         )}
       </div>
 
+      {/* Results Release Status Banner */}
+      {exam.resultsReleasedAt ? (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-emerald-50/80 border border-emerald-200/80 rounded-2xl text-xs text-emerald-800">
+          <div className="flex items-center gap-2.5 font-medium">
+            <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>
+              Results are currently <strong>public</strong> to students (Released on <LocalTime dateString={exam.resultsReleasedAt} mode="datetime" />). Students can view their marks and explanations.
+            </span>
+          </div>
+          <ReleaseResultsButton examId={id} resultsReleasedAt={exam.resultsReleasedAt} />
+        </div>
+      ) : (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 bg-amber-50/80 border border-amber-200/80 rounded-2xl text-xs text-amber-800">
+          <div className="flex items-center gap-2.5 font-medium">
+            <EyeOff className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              Results are currently <strong>hidden</strong> from students. Scores and question keys will remain private until you release them.
+            </span>
+          </div>
+          <ReleaseResultsButton examId={id} resultsReleasedAt={null} />
+        </div>
+      )}
+
       {/* View Tabs */}
       <div className="flex space-x-1 bg-slate-100 p-1 rounded-xl w-fit">
         <Link
@@ -266,7 +290,7 @@ export default async function ExamResultsPage({
       </div>
 
       {tab === "analytics" && analytics ? (
-        <AnalyticsDashboard analytics={analytics} />
+        <AnalyticsDashboard analytics={analytics} examId={id} />
       ) : (
         <div className="space-y-4">
           <FilterBar defs={filterDefs} />

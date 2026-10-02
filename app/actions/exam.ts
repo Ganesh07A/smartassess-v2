@@ -31,6 +31,9 @@ import {
 } from "@/lib/validation/schemas";
 import { rateLimits } from "@/lib/rate-limit";
 import { computeRiskScore, readProctoringSettings, resolveExamStatus } from "@/lib/exams/status";
+import { analyzeTestItems } from "@/lib/analytics/psychometrics";
+import { buildCohortTopicBreakdown } from "@/lib/analytics/topics";
+import { MAX_SESSIONS_FOR_ANALYSIS, PSYCHOMETRIC_THRESHOLDS } from "@/lib/analytics/thresholds";
 
 const MAX_PAGE_SIZE = 200;
 
@@ -47,6 +50,7 @@ export async function createExam(data: {
   shuffleOptions?: boolean;
   negativeMarking?: number;
   subjects?: string[];
+  answerReveal?: "NEVER" | "AFTER_EXAM_END" | "AFTER_RELEASE" | "IMMEDIATELY";
   proctoring?: Prisma.InputJsonValue;
 }) {
   const teacher = await requireTeacher();
@@ -65,6 +69,7 @@ export async function createExam(data: {
       shuffleOptions: input.shuffleOptions ?? true,
       negativeMarking: input.negativeMarking ?? 0,
       subjects: input.subjects ?? [],
+      answerReveal: input.answerReveal ?? "AFTER_EXAM_END",
       proctoring: (input.proctoring ?? {}) as Prisma.InputJsonValue,
       status: "DRAFT",
     },
@@ -594,7 +599,7 @@ export async function submitExam(sessionId: string) {
 /* --------------------------------------------------------------- analytics */
 
 /**
- * Fetches advanced analytics for a specific exam.
+ * Fetches advanced analytics, psychometrics, distractor metrics, and topic breakdowns for a specific exam.
  */
 export async function getExamAnalytics(examId: string) {
   const teacher = await requireTeacher();
@@ -610,58 +615,148 @@ export async function getExamAnalytics(examId: string) {
         },
         orderBy: { order: "asc" },
       },
-      sessions: {
-        where: {
-          status: { in: ["COMPLETED", "FORCE_SUBMITTED"] },
-        },
-        include: {
-          submissions: true,
-        },
-        take: MAX_PAGE_SIZE,
-      },
     },
   });
 
   if (!exam) throw new NotFoundOrUnauthorizedError("Exam not found.");
 
-  const totalCompleted = exam.sessions.length;
+  // Fetch completed sessions bounded by MAX_SESSIONS_FOR_ANALYSIS + 1 to detect truncation
+  const sessions = await prisma.studentExamSession.findMany({
+    where: {
+      examId: id,
+      status: { in: ["COMPLETED", "FORCE_SUBMITTED"] },
+    },
+    select: {
+      id: true,
+      totalScore: true,
+      percentage: true,
+      submissions: {
+        select: {
+          questionId: true,
+          pointsAwarded: true,
+          isCorrect: true,
+          mcqAnswer: true,
+        },
+      },
+    },
+    take: MAX_SESSIONS_FOR_ANALYSIS + 1,
+    orderBy: { percentage: "desc" },
+  });
 
-  // Question-level metrics
-  const questionMetrics = exam.questions.map((examQuestion) => {
-    const submissions = exam.sessions.flatMap((session) =>
-      session.submissions.filter((sub) => sub.questionId === examQuestion.questionId),
-    );
+  const truncated = sessions.length > MAX_SESSIONS_FOR_ANALYSIS;
+  const analysisSessions = truncated ? sessions.slice(0, MAX_SESSIONS_FOR_ANALYSIS) : sessions;
+  const totalCompleted = analysisSessions.length;
 
-    const correctCount = submissions.filter((sub) => sub.isCorrect).length;
-    const avgScore =
-      submissions.reduce((sum, sub) => sum + (sub.pointsAwarded || 0), 0) / (totalCompleted || 1);
-    const successRate = (correctCount / (totalCompleted || 1)) * 100;
+  const totals = analysisSessions.map((s) => s.totalScore);
+
+  // Build aligned lookup map in O(N * k)
+  const sessionSubMap = new Map<
+    string,
+    Map<string, { pointsAwarded: number | null; isCorrect: boolean | null; mcqAnswer: string | null }>
+  >();
+
+  for (const s of analysisSessions) {
+    const qMap = new Map<
+      string,
+      { pointsAwarded: number | null; isCorrect: boolean | null; mcqAnswer: string | null }
+    >();
+    for (const sub of s.submissions) {
+      qMap.set(sub.questionId, sub);
+    }
+    sessionSubMap.set(s.id, qMap);
+  }
+
+  // Build aligned ItemScores
+  const items = exam.questions.map((eq) => {
+    const scores = analysisSessions.map((s) => {
+      const sub = sessionSubMap.get(s.id)?.get(eq.questionId);
+      return sub ? (sub.pointsAwarded ?? 0) : null;
+    });
+    return {
+      questionId: eq.questionId,
+      maxPoints: eq.points,
+      scores,
+    };
+  });
+
+  // Build aligned OptionChoices for MCQ distractor evaluation
+  const choices = exam.questions
+    .filter((eq) => eq.question.type === "MCQ")
+    .map((eq) => {
+      const optionsObj = (eq.question.options as Record<string, string>) ?? {};
+      const optionKeys = Object.keys(optionsObj);
+      const chosen = analysisSessions.map((s) => {
+        const sub = sessionSubMap.get(s.id)?.get(eq.questionId);
+        return sub?.mcqAnswer ?? null;
+      });
+      return {
+        questionId: eq.questionId,
+        optionKeys,
+        correctKey: eq.question.correctAnswer ?? undefined,
+        chosen,
+      };
+    });
+
+  const analysis = analyzeTestItems({
+    items,
+    totals,
+    choices,
+    truncated,
+  });
+
+  const topicByQuestionId = new Map(
+    exam.questions.map((eq) => [eq.questionId, eq.question.topic]),
+  );
+
+  const topicBreakdown = buildCohortTopicBreakdown({
+    items,
+    totals,
+    topicByQuestionId,
+  });
+
+  const analysisByQuestion = new Map(analysis.items.map((i) => [i.questionId, i]));
+
+  // Question-level metrics (with full psychometric stats and backward compatibility)
+  const questionMetrics = exam.questions.map((examQuestion, idx) => {
+    const itemAnalysis = analysisByQuestion.get(examQuestion.questionId);
+    const facility = itemAnalysis?.facility ?? 0;
+    const successRate = facility * 100;
 
     let difficulty = "Medium";
-    if (successRate > 80) difficulty = "Easy";
-    else if (successRate < 40) difficulty = "Hard";
+    if (facility >= 0.85) difficulty = "Easy";
+    else if (facility <= 0.25) difficulty = "Hard";
 
     return {
       questionId: examQuestion.questionId,
+      order: examQuestion.order ?? idx + 1,
       content: examQuestion.question.content,
       type: examQuestion.question.type,
-      topic: examQuestion.question.topic,
+      topic: examQuestion.question.topic ?? "Untagged",
+      tags: examQuestion.question.tags,
+      explanation: examQuestion.question.explanation,
       declaredDifficulty: examQuestion.question.difficulty,
       successRate,
-      avgScore,
+      facility,
+      discrimination: itemAnalysis?.discrimination ?? null,
+      discriminationUpperLower: itemAnalysis?.discriminationUpperLower ?? null,
+      flags: itemAnalysis?.flags ?? [],
+      distractors: itemAnalysis?.distractors,
+      attempted: itemAnalysis?.attempted ?? 0,
+      avgScore: facility * examQuestion.points,
       difficulty,
       totalPoints: examQuestion.points,
     };
   });
 
-  // Score distribution (denormalized totalScore written at submit time)
-  const scores = exam.sessions.map((session) => session.totalScore);
-
   return {
     totalCompleted,
     questionMetrics,
-    scores,
+    scores: totals,
     maxPossibleScore: exam.questions.reduce((sum, question) => sum + question.points, 0),
+    analysis,
+    topicBreakdown,
+    thresholds: PSYCHOMETRIC_THRESHOLDS,
+    truncated,
   };
 }
 

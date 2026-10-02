@@ -36,6 +36,7 @@ export default function NewExamForm({ batches }: { batches: Batch[] }) {
     duration: 60,
     allowRunCode: true,
     shuffleOptions: true,
+    answerReveal: "AFTER_RELEASE" as "NEVER" | "AFTER_EXAM_END" | "AFTER_RELEASE" | "IMMEDIATELY",
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -404,7 +405,30 @@ export default function NewExamForm({ batches }: { batches: Batch[] }) {
                 </p>
               </div>
             </label>
+          </div>
 
+          <div className="mt-4 p-5 bg-slate-50/50 rounded-2xl border border-slate-200/80 space-y-2">
+            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+              Answer Reveal & Score Visibility Policy
+            </label>
+            <select
+              value={formData.answerReveal}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  answerReveal: e.target.value as "NEVER" | "AFTER_EXAM_END" | "AFTER_RELEASE" | "IMMEDIATELY",
+                })
+              }
+              className="w-full px-4 py-3 bg-white border border-slate-200 focus:border-indigo-600 rounded-xl outline-none focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-800 text-xs"
+            >
+              <option value="AFTER_RELEASE">After Teacher Releases Results (Recommended for strict exams)</option>
+              <option value="AFTER_EXAM_END">After Exam Window Ends (Automatic when schedule finishes)</option>
+              <option value="IMMEDIATELY">Immediately on Student Submission (Practice tests only)</option>
+              <option value="NEVER">Never Reveal Correct Answers (Strict certification)</option>
+            </select>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              <strong>After Teacher Releases:</strong> Scores and explanations remain private until you click &quot;Release Results&quot; on the dashboard.
+            </p>
           </div>
         </div>
 
