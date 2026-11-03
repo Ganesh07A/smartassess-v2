@@ -3,10 +3,10 @@
 import { headers } from "next/headers";
 import { prisma } from "@/app/db";
 import bcrypt from "bcryptjs";
-import { Role } from "@prisma/client";
+import { Prisma, Role } from "@prisma/client";
 import { parseInput, ValidationError } from "@/lib/validation/parse";
 import { signUpSchema } from "@/lib/validation/schemas";
-import { rateLimits } from "@/lib/rate-limit";
+import { rateLimits, RateLimitError } from "@/lib/rate-limit";
 
 export interface SignUpResponse {
   success: boolean;
@@ -177,7 +177,55 @@ export async function signUp(data: {
     if (error instanceof ValidationError) {
       return { success: false, error: error.issues[0]?.message ?? "Invalid registration details." };
     }
-    console.error("Sign-up Server Action Error:", error);
+    if (error instanceof RateLimitError) {
+      return {
+        success: false,
+        error: "Too many sign-up attempts. Please slow down and try again shortly.",
+      };
+    }
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      const target = Array.isArray(error.meta?.target)
+        ? (error.meta.target as string[])
+        : typeof error.meta?.target === "string"
+          ? [error.meta.target]
+          : [];
+
+      if (error.code === "P2002") {
+        if (target.includes("email")) {
+          return { success: false, error: "An account with this email address already exists." };
+        }
+        if (target.includes("prn")) {
+          return { success: false, error: "A student with this PRN is already registered." };
+        }
+      }
+
+      console.error("Sign-up Server Action Database Error:", {
+        code: error.code,
+        modelName: (error.meta as Record<string, unknown> | undefined)?.modelName,
+        target: error.meta?.target,
+        message: error.message?.split("\n").filter(Boolean)[0] || "PrismaClientKnownRequestError",
+      });
+
+      return {
+        success: false,
+        error: "An unexpected error occurred during registration. Please try again.",
+      };
+    }
+
+    if (error instanceof Prisma.PrismaClientInitializationError) {
+      console.error("Sign-up Server Action Database Initialization Error:", {
+        errorCode: error.errorCode,
+        message: error.message?.split("\n").filter(Boolean)[0] || "PrismaClientInitializationError",
+      });
+
+      return {
+        success: false,
+        error: "An unexpected error occurred during registration. Please try again.",
+      };
+    }
+
+    console.error("Sign-up Server Action Unexpected Error:", error instanceof Error ? error.name : "UnknownError");
     return {
       success: false,
       error: "An unexpected error occurred during registration. Please try again.",

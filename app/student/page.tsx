@@ -14,6 +14,7 @@ import {
   Activity,
   Trophy,
   XCircle,
+  AlertTriangle,
 } from "lucide-react";
 import LocalTime from "@/ui/local-time";
 import { getStudentExamsPaged } from "@/app/actions/exam-filters";
@@ -32,9 +33,11 @@ export default async function StudentDashboard({
   if (!session?.user?.id) redirect("/login");
 
   const rawParams = await searchParams;
+  const now = new Date();
 
   // Run student exam list query and overall stats aggregation in parallel
-  const [pagedData, statsAgg, totalAssignedCount] = await Promise.all([
+  // Only released exams contribute to average score & points earned to prevent unreleased score leaks
+  const [pagedData, completedStatsAgg, releasedStatsAgg, totalAssignedCount] = await Promise.all([
     getStudentExamsPaged(rawParams),
     prisma.studentExamSession.aggregate({
       where: {
@@ -42,6 +45,15 @@ export default async function StudentDashboard({
         status: { in: ["COMPLETED", "FORCE_SUBMITTED"] },
       },
       _count: { id: true },
+    }),
+    prisma.studentExamSession.aggregate({
+      where: {
+        studentId: session.user.id,
+        status: { in: ["COMPLETED", "FORCE_SUBMITTED"] },
+        exam: {
+          resultsReleasedAt: { lte: now },
+        },
+      },
       _sum: { totalScore: true, maxScore: true },
       _avg: { percentage: true },
     }),
@@ -54,10 +66,10 @@ export default async function StudentDashboard({
     }),
   ]);
 
-  const examsCompleted = statsAgg._count.id;
-  const avgPercentage = statsAgg._avg.percentage ?? 0;
+  const examsCompleted = completedStatsAgg._count.id;
+  const avgPercentage = releasedStatsAgg._avg.percentage ?? 0;
   const pendingCount = Math.max(0, totalAssignedCount - examsCompleted);
-  const totalEarned = statsAgg._sum.totalScore ?? 0;
+  const totalEarned = releasedStatsAgg._sum.totalScore ?? 0;
 
   const stats = [
     {
@@ -120,8 +132,6 @@ export default async function StudentDashboard({
     },
   ];
 
-  const now = new Date();
-
   return (
     <div className="space-y-10 max-w-6xl mx-auto pb-12">
       {/* Welcome Header */}
@@ -177,15 +187,17 @@ export default async function StudentDashboard({
             <div className="grid grid-cols-1 gap-4">
               {pagedData.rows.map((exam) => {
                 const s = exam.session;
-                const isCompleted =
-                  s?.status === "COMPLETED" || s?.status === "FORCE_SUBMITTED";
+                const isSuspended = s?.status === "FORCE_SUBMITTED";
+                const isCompleted = s?.status === "COMPLETED";
+                const isFinished = isCompleted || isSuspended;
                 const isStarted = s?.status === "STARTED";
                 const startTime = new Date(exam.startTime);
                 const endTime = new Date(exam.endTime);
                 const isUpcoming = now < startTime;
                 const isExpired = now > endTime;
-                const isMissed = isExpired && !isCompleted;
-                const canStart = !isCompleted && !isExpired && !isUpcoming;
+                const isMissed = isExpired && !isFinished;
+                const canStart = !isFinished && !isExpired && !isUpcoming;
+                const isResultsReleased = Boolean(exam.resultsReleasedAt && now >= new Date(exam.resultsReleasedAt));
 
                 return (
                   <div
@@ -203,7 +215,11 @@ export default async function StudentDashboard({
                             {exam.batch.name}
                           </span>
 
-                          {isCompleted ? (
+                          {isSuspended ? (
+                            <span className="flex items-center text-rose-700 bg-rose-50 border border-rose-200 px-2.5 py-0.5 text-[10px] font-bold rounded-lg uppercase tracking-wider">
+                              <AlertTriangle className="w-3 h-3 mr-1 text-rose-600" /> Suspended
+                            </span>
+                          ) : isCompleted ? (
                             <span className="flex items-center text-emerald-700 bg-emerald-50 border border-emerald-100/60 px-2.5 py-0.5 text-[10px] font-bold rounded-lg uppercase tracking-wider">
                               <CheckCircle className="w-3 h-3 mr-1 text-emerald-600" /> Completed
                             </span>
@@ -221,9 +237,15 @@ export default async function StudentDashboard({
                             </span>
                           )}
 
-                          {isCompleted && s?.percentage !== undefined && (
+                          {isFinished && isResultsReleased && s?.percentage !== undefined && (
                             <span className="px-2.5 py-0.5 bg-indigo-50 text-indigo-700 border border-indigo-100/60 text-[10px] font-black rounded-lg">
                               Score: {s.percentage.toFixed(0)}%
+                            </span>
+                          )}
+
+                          {isFinished && !isResultsReleased && (
+                            <span className="px-2.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-bold rounded-lg uppercase tracking-wider">
+                              Under Review
                             </span>
                           )}
                         </div>
@@ -243,8 +265,10 @@ export default async function StudentDashboard({
                             <Clock className="w-3.5 h-3.5 mr-1.5 opacity-60" /> {exam.duration} mins
                           </div>
                           <div className="flex items-center">
-                            <Calendar className="w-3.5 h-3.5 mr-1.5 opacity-60" /> Starts:{" "}
-                            <LocalTime dateString={exam.startTime} mode="date" className="ml-1" />
+                            <Calendar className="w-3.5 h-3.5 mr-1.5 opacity-60" /> Window:{" "}
+                            <LocalTime dateString={exam.startTime} mode="datetime" className="ml-1" />
+                            <span className="mx-1 text-slate-300">–</span>
+                            <LocalTime dateString={exam.endTime} mode="time" className="ml-0.5" />
                           </div>
                           <div className="flex items-center">
                             <BookOpen className="w-3.5 h-3.5 mr-1.5 opacity-60" /> {exam._count.questions} Items
@@ -253,12 +277,24 @@ export default async function StudentDashboard({
                       </div>
 
                       <div className="shrink-0 flex items-center gap-3">
-                        {isCompleted ? (
+                        {isSuspended ? (
                           <Link
                             href={`/student/exams/${exam.id}/result`}
-                            className="inline-flex items-center px-5 py-2.5 bg-slate-900 hover:bg-black text-white text-xs font-bold rounded-xl transition-colors shadow-sm"
+                            className="inline-flex items-center px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl transition-colors border border-rose-200"
                           >
-                            Result Analytics
+                            Suspended (View Details)
+                            <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+                          </Link>
+                        ) : isCompleted ? (
+                          <Link
+                            href={`/student/exams/${exam.id}/result`}
+                            className={`inline-flex items-center text-xs font-bold rounded-xl transition-colors shadow-sm ${
+                              isResultsReleased
+                                ? "px-5 py-2.5 bg-slate-900 hover:bg-black text-white"
+                                : "px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200"
+                            }`}
+                          >
+                            {isResultsReleased ? "Result Analytics" : "View Submission"}
                             <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
                           </Link>
                         ) : canStart ? (

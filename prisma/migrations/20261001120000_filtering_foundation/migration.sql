@@ -27,6 +27,17 @@ DO $$ BEGIN
   END IF;
 END $$;
 
+-- AlterTable User (idempotent — student department/year/division)
+ALTER TABLE "User"
+  ADD COLUMN IF NOT EXISTS "department" TEXT,
+  ADD COLUMN IF NOT EXISTS "year" TEXT,
+  ADD COLUMN IF NOT EXISTS "division" TEXT;
+
+-- AlterTable Batch (idempotent — allow global department batches)
+ALTER TABLE "Batch"
+  ALTER COLUMN "teacherId" DROP NOT NULL,
+  ADD COLUMN IF NOT EXISTS "department" TEXT;
+
 -- AlterTable Exam (idempotent — ADD COLUMN IF NOT EXISTS)
 ALTER TABLE "Exam"
   ADD COLUMN IF NOT EXISTS "status" "ExamStatus" NOT NULL DEFAULT 'DRAFT',

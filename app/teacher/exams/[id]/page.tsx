@@ -105,7 +105,9 @@ export default async function ExamDetailsPage({
             </span>
             <span className="flex items-center px-3 py-1.5 bg-slate-50 text-slate-600 font-bold rounded-xl border border-slate-100/50">
               <Calendar className="w-3.5 h-3.5 mr-1.5 text-slate-400" /> 
-              Starts: <LocalTime dateString={exam.startTime} mode="date" className="ml-1" />
+              Window: <LocalTime dateString={exam.startTime} mode="datetime" className="ml-1" />
+              <span className="mx-1 text-slate-300">–</span>
+              <LocalTime dateString={exam.endTime} mode="time" className="ml-0.5" />
             </span>
             {(() => {
               const status = resolveExamStatus(exam);

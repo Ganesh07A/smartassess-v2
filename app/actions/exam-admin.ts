@@ -8,6 +8,7 @@ import {
   type UpdateExamSettingsInput,
 } from "@/lib/validation/schemas";
 import { Difficulty, Prisma } from "@prisma/client";
+import { resolveExamStatus } from "@/lib/exams/status";
 
 /**
  * Release exam results to students.
@@ -56,6 +57,34 @@ export async function releaseExamResults(
     data: { resultsReleasedAt: releasedAt },
   });
 
+  // Issue certificates for all eligible passing students upon release
+  try {
+    const { issueCertificateInternal, PASS_PERCENTAGE } = await import("@/lib/certificates/issue");
+    const eligibleSessions = await prisma.studentExamSession.findMany({
+      where: {
+        examId,
+        status: { in: ["COMPLETED", "FORCE_SUBMITTED"] },
+        percentage: { gte: PASS_PERCENTAGE },
+      },
+      select: { studentId: true },
+    });
+
+    for (const s of eligibleSessions) {
+      try {
+        const existing = await prisma.certificate.findUnique({
+          where: { studentId_examId: { studentId: s.studentId, examId } },
+        });
+        if (!existing) {
+          await issueCertificateInternal(examId, s.studentId);
+        }
+      } catch (err) {
+        console.error(`Failed to issue certificate for student ${s.studentId}:`, err);
+      }
+    }
+  } catch (err) {
+    console.error("Certificate generation on release failed:", err);
+  }
+
   revalidatePath(`/teacher/exams/${examId}`);
   revalidatePath(`/teacher/exams/${examId}/results`);
   revalidatePath(`/student/exams/${examId}/result`);
@@ -100,6 +129,7 @@ export async function updateExamSettings(
   const teacher = await requireTeacher();
   const currentExam = await assertExamAccess(examId, teacher, {
     id: true,
+    published: true,
     startTime: true,
     endTime: true,
     duration: true,
@@ -176,6 +206,15 @@ export async function updateExamSettings(
       ...(parsed.subjects ? { subjects: parsed.subjects } : {}),
       ...(parsed.answerReveal ? { answerReveal: parsed.answerReveal } : {}),
       ...(parsed.resultsReleasedAt !== undefined ? { resultsReleasedAt: parsed.resultsReleasedAt } : {}),
+      ...(currentExam.published
+        ? {
+            status: resolveExamStatus({
+              published: true,
+              startTime: effectiveStart,
+              endTime: effectiveEnd,
+            }),
+          }
+        : {}),
       proctoring: mergedProctoring as Prisma.InputJsonValue,
     },
   });
@@ -185,6 +224,7 @@ export async function updateExamSettings(
   revalidatePath(`/student/exams/${examId}`);
   revalidatePath(`/student/exams/${examId}/result`);
   revalidatePath("/teacher/exams");
+  revalidatePath("/student");
 
   return {
     success: true,

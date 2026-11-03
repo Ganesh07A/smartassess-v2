@@ -3,6 +3,14 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import pg from "pg";
 
+// Configure pg type parser for TIMESTAMP WITHOUT TIME ZONE (OID 1114).
+// PostgreSQL returns timestamp strings in UTC without timezone offset (e.g. '2026-11-03 18:25:00').
+// By default, node-pg parses strings without 'Z' using the local machine timezone (e.g. IST +05:30),
+// which unintentionally shifts dates. Appending 'Z' ensures node-pg parses them as UTC correctly.
+pg.types.setTypeParser(1114, (stringValue: string) => {
+  return new Date(stringValue.endsWith("Z") ? stringValue : `${stringValue.replace(" ", "T")}Z`);
+});
+
 const globalForPrisma = global as unknown as { prisma: PrismaClient };
 
 const connectionString = process.env.DATABASE_URL;
@@ -34,7 +42,7 @@ export const prisma =
     } else {
       const pool = new pg.Pool({
         connectionString,
-        max: process.env.NODE_ENV === "production" ? 2 : 10, // Max 2 connections in production serverless to prevent Neon connection limit exhaustion
+        max: process.env.DATABASE_POOL_MAX ? parseInt(process.env.DATABASE_POOL_MAX, 10) : 10, // Default 10 pool connections (backed by Supabase Transaction Pooler)
         idleTimeoutMillis: 15000, // Close idle connections faster (15s) to free resources
         connectionTimeoutMillis: 15000, // 15s connection timeout to allow Neon database to wake up if suspended
       });

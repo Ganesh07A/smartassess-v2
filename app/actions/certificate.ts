@@ -46,6 +46,14 @@ export async function getCertificate(examId: string, studentId: string) {
     if (session.user.id !== input.studentId) {
       throw new Error("Unauthorized");
     }
+    // Gating: Results must be released before student can view or download their certificate
+    const exam = await prisma.exam.findUnique({
+      where: { id: input.examId },
+      select: { resultsReleasedAt: true },
+    });
+    if (!exam?.resultsReleasedAt || new Date() < new Date(exam.resultsReleasedAt)) {
+      return null;
+    }
   } else if (session.user.role === "TEACHER") {
     const teacher = await requireTeacher();
     await assertExamAccess(input.examId, teacher, { id: true });
@@ -79,7 +87,12 @@ export async function getStudentCertificates() {
   const studentId = parseInput(idSchema, student.id);
 
   return await prisma.certificate.findMany({
-    where: { studentId },
+    where: {
+      studentId,
+      exam: {
+        resultsReleasedAt: { lte: new Date() },
+      },
+    },
     include: {
       exam: {
         select: { title: true, startTime: true },

@@ -1119,16 +1119,7 @@ async function finalizeSession(sessionId: string, status: "COMPLETED" | "FORCE_S
   revalidatePath(`/student/exams/${examSession.examId}/result`);
   revalidatePath(`/teacher/exams/${examSession.examId}/results`);
   revalidatePath(`/teacher/exams/${examSession.examId}/live`);
-
-  // Automatically attempt to issue a certificate if they passed.
-  try {
-    const { issueCertificateInternal } = await import("@/lib/certificates/issue");
-    await issueCertificateInternal(examSession.examId, examSession.studentId);
-  } catch (err) {
-    // Silently fail if they didn't pass or other issues,
-    // as certificates can be generated later manually too.
-    console.log("Auto-certificate issuance skipped or failed:", (err as Error).message);
-  }
+  // Certificates are issued when the teacher explicitly releases results or via manual batch issuance.
 
   return await prisma.studentExamSession.findUnique({ where: { id: sessionId } });
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { updateExamSettings } from "@/app/actions/exam-admin";
 import { Settings, Lock, Loader2, X, CheckCircle } from "lucide-react";
 import type { AnswerRevealPolicy } from "@prisma/client";
@@ -22,6 +22,17 @@ interface ExamSettingsDialogProps {
   hasStartedSessions?: boolean;
 }
 
+function toLocalDatetimeInputValue(date: Date | string): string {
+  const d = new Date(date);
+  if (Number.isNaN(d.getTime())) return "";
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const hours = String(d.getHours()).padStart(2, "0");
+  const minutes = String(d.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
 export function ExamSettingsDialog({
   exam,
   hasStartedSessions = false,
@@ -35,10 +46,10 @@ export function ExamSettingsDialog({
   const [title, setTitle] = useState(exam.title);
   const [description, setDescription] = useState(exam.description ?? "");
   const [startTime, setStartTime] = useState(
-    new Date(exam.startTime).toISOString().slice(0, 16),
+    toLocalDatetimeInputValue(exam.startTime),
   );
   const [endTime, setEndTime] = useState(
-    new Date(exam.endTime).toISOString().slice(0, 16),
+    toLocalDatetimeInputValue(exam.endTime),
   );
   const [duration, setDuration] = useState(exam.duration);
   const [allowRunCode, setAllowRunCode] = useState(exam.allowRunCode);
@@ -61,6 +72,29 @@ export function ExamSettingsDialog({
   const [requireFullscreen, setRequireFullscreen] = useState(
     Boolean(proctoringObj.requireFullscreen),
   );
+
+  useEffect(() => {
+    if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTitle(exam.title);
+      setDescription(exam.description ?? "");
+      setStartTime(toLocalDatetimeInputValue(exam.startTime));
+      setEndTime(toLocalDatetimeInputValue(exam.endTime));
+      setDuration(exam.duration);
+      setAllowRunCode(exam.allowRunCode);
+      setShuffleOptions(exam.shuffleOptions);
+      setNegativeMarking(exam.negativeMarking);
+      setAnswerReveal(exam.answerReveal);
+      const proctoring = (exam.proctoring ?? {}) as {
+        maxTabSwitches?: number;
+        blockClipboard?: boolean;
+        requireFullscreen?: boolean;
+      };
+      setMaxTabSwitches(proctoring.maxTabSwitches ?? 3);
+      setBlockClipboard(Boolean(proctoring.blockClipboard));
+      setRequireFullscreen(Boolean(proctoring.requireFullscreen));
+    }
+  }, [isOpen, exam]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
