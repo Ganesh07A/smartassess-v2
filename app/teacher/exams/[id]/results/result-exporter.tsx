@@ -212,9 +212,9 @@ export default function ResultExporter({
       currentY += cardHeight + 6;
 
       // 3. Detailed Student Table:
-      // STRICT HEADERS ONLY: Student, PRN, Status, Score %, Total, Correct, Violations
+      // STRICT HEADERS ONLY: Student, PRN, Status, Score%, Total, Correct, Violations
       const headers = [
-        ["Student", "PRN", "Status", "Score %", "Total", "Correct", "Violations"],
+        ["Student", "PRN", "Status", "Score%", "Total", "Correct", "Violations"],
       ];
 
       const tableData = rows.map((res) => {

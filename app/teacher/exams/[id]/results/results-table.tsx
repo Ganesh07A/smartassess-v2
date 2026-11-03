@@ -2,12 +2,11 @@
 
 import React from "react";
 import Link from "next/link";
-import { CheckCircle, Clock, ShieldAlert } from "lucide-react";
+import { CheckCircle, ShieldAlert } from "lucide-react";
 import { DataTable, type Column } from "@/ui/filters/data-table";
 import { FilterBar, type FilterDef } from "@/ui/filters/filter-bar";
 import { Pagination } from "@/ui/filters/pagination";
 import { EmptyState } from "@/ui/filters/empty-state";
-import LocalTime from "@/ui/local-time";
 import type { ResultListRow } from "@/lib/filters/builders/results";
 
 interface ResultsTableProps {
@@ -31,6 +30,7 @@ export function ResultsTable({
   filterDefs,
   examId,
 }: ResultsTableProps) {
+  // Columns strictly matching: Student, PRN, Status, Score%, Total, Correct, Violations
   const columns: Column<ResultListRow>[] = [
     {
       key: "student",
@@ -71,6 +71,22 @@ export function ResultsTable({
       ),
     },
     {
+      key: "score",
+      header: "Score%",
+      sortKey: "percentage",
+      render: (row) => (
+        <span className="font-black text-indigo-600">{row.percentage.toFixed(1)}%</span>
+      ),
+    },
+    {
+      key: "totalScore",
+      header: "Total",
+      sortKey: "totalScore",
+      render: (row) => (
+        <span className="font-bold text-slate-700">{row.totalScore.toFixed(1)}</span>
+      ),
+    },
+    {
       key: "correct",
       header: "Correct",
       render: (row) => {
@@ -82,17 +98,6 @@ export function ResultsTable({
           </div>
         );
       },
-    },
-    {
-      key: "score",
-      header: "Score (%)",
-      sortKey: "percentage",
-      render: (row) => (
-        <div>
-          <span className="font-black text-indigo-600">{row.percentage.toFixed(1)}%</span>
-          <span className="ml-1 text-xs text-slate-400 font-medium">({row.totalScore.toFixed(1)} pts)</span>
-        </div>
-      ),
     },
     {
       key: "violations",
@@ -113,21 +118,6 @@ export function ResultsTable({
             <ShieldAlert className="w-3 h-3" />
             {row.violationCount}
           </span>
-        );
-      },
-    },
-    {
-      key: "submittedAt",
-      header: "Submitted",
-      sortKey: "submittedAt",
-      align: "right",
-      render: (row) => {
-        const timestamp = row.submittedAt || row.updatedAt;
-        return (
-          <div className="flex items-center justify-end text-xs text-slate-500 font-normal">
-            <Clock className="w-3 h-3 mr-1 text-slate-400" />
-            <LocalTime dateString={timestamp} mode="datetime" className="text-slate-600" />
-          </div>
         );
       },
     },
@@ -166,4 +156,3 @@ export function ResultsTable({
     </div>
   );
 }
-
