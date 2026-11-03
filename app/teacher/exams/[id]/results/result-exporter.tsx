@@ -12,6 +12,7 @@ import type { ResultFilter } from "@/lib/filters/schemas";
 interface ResultExporterProps {
   examId: string;
   examTitle: string;
+  batchName?: string;
   questionsCount: number;
   totalFiltered: number;
   filter: ResultFilter;
@@ -20,6 +21,7 @@ interface ResultExporterProps {
 export default function ResultExporter({
   examId,
   examTitle,
+  batchName,
   questionsCount,
   totalFiltered,
   filter,
@@ -29,7 +31,9 @@ export default function ResultExporter({
   const fetchExportRows = async () => {
     const res = await exportExamResults(examId, filter);
     if (res.truncated) {
-      toast.info(`Export limited to the first ${res.cap.toLocaleString()} matching records. Narrow your filters to export specific subsets.`);
+      toast.info(
+        `Export limited to the first ${res.cap.toLocaleString()} matching records. Narrow your filters to export specific subsets.`
+      );
     }
     return res.rows;
   };
@@ -38,21 +42,27 @@ export default function ResultExporter({
     setIsExporting(true);
     try {
       const rows = await fetchExportRows();
+      if (rows.length === 0) {
+        toast.info("No records to export.");
+        return;
+      }
 
       const data = rows.map((res) => {
         const correctCount = res.submissions.filter((s) => s.isCorrect).length;
         return {
           "Student Name": res.student.name || "Unknown",
-          "PRN": res.student.prn || "N/A",
-          "Email": res.student.email || "N/A",
-          "Status": res.status,
+          PRN: res.student.prn || "N/A",
+          Email: res.student.email || "N/A",
+          Status: res.status,
           "Score (%)": `${res.percentage.toFixed(1)}%`,
           "Total Score": res.totalScore.toFixed(2),
           "Max Score": res.maxScore.toFixed(2),
           "Correct Answers": `${correctCount}/${questionsCount}`,
-          "Violations": res.violationCount,
+          Violations: res.violationCount,
           "Risk Score": res.riskScore,
-          "Submitted At": res.submittedAt ? new Date(res.submittedAt).toLocaleString() : "—",
+          "Submitted At": res.submittedAt
+            ? new Date(res.submittedAt).toLocaleString()
+            : "—",
         };
       });
 
@@ -60,10 +70,16 @@ export default function ResultExporter({
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, "Filtered Results");
 
-      const maxWidth = data.reduce((w, r) => Math.max(w, r["Student Name"].length), 12);
+      const maxWidth = data.reduce(
+        (w, r) => Math.max(w, r["Student Name"].length),
+        12
+      );
       worksheet["!cols"] = [{ wch: maxWidth + 5 }];
 
-      XLSX.writeFile(workbook, `${examTitle}_Results_Filtered.xlsx`);
+      XLSX.writeFile(
+        workbook,
+        `${examTitle.replace(/[^a-zA-Z0-9_-]/g, "_")}_Results_Filtered.xlsx`
+      );
       toast.success(`Exported ${rows.length} results to Excel.`);
     } catch (err) {
       console.error("Excel Export Error:", err);
@@ -77,42 +93,273 @@ export default function ResultExporter({
     setIsExporting(true);
     try {
       const rows = await fetchExportRows();
-      const doc = new jsPDF();
+      if (rows.length === 0) {
+        toast.info("No records to export.");
+        return;
+      }
 
-      doc.setFontSize(18);
-      doc.text(`${examTitle} — Examination Results`, 14, 20);
+      // Responsive layout:
+      // Small exports (<= 25 students): compact portrait PDF
+      // Larger exports (> 25 students): landscape layout for optimal readability
+      const isLandscape = rows.length > 25;
+      const doc = new jsPDF({
+        orientation: isLandscape ? "landscape" : "portrait",
+        unit: "mm",
+        format: "a4",
+      });
 
-      doc.setFontSize(10);
-      doc.setTextColor(100);
-      doc.text(
-        `Generated: ${new Date().toLocaleString()} • Total Exported: ${rows.length} of ${totalFiltered} filtered`,
-        14,
-        28,
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 14;
+      const contentWidth = pageWidth - margin * 2;
+
+      // 1. Header: SmartAssess | Examination Report
+      let currentY = 16;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(15);
+      doc.setTextColor(15, 23, 42); // slate-900
+      doc.text("SmartAssess | Examination Report", margin, currentY);
+
+      // Metadata bullet list
+      currentY += 6;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(71, 85, 105); // slate-600
+
+      const now = new Date();
+      const formattedDate =
+        now.toLocaleDateString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+        }) +
+        ", " +
+        now.toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        });
+
+      const exportScopeText = `${rows.length} ${
+        rows.length === 1 ? "student" : "students"
+      }${totalFiltered !== rows.length ? ` (${totalFiltered} total matching filters)` : ""}`;
+
+      const metaLines = [
+        `- Exam: ${examTitle}`,
+        `- Batch: ${batchName || "N/A"}`,
+        `- Generated: ${formattedDate}`,
+        `- Export scope: ${exportScopeText}`,
+      ];
+
+      metaLines.forEach((line) => {
+        doc.text(line, margin, currentY);
+        currentY += 4.5;
+      });
+
+      // 2. Metrics Calculation
+      const totalStudents = rows.length;
+      const avgScore =
+        totalStudents > 0
+          ? (
+              rows.reduce((sum, r) => sum + r.percentage, 0) / totalStudents
+            ).toFixed(1) + "%"
+          : "0%";
+      const completedCount = rows.filter(
+        (r) => r.status === "COMPLETED" || r.status === "FORCE_SUBMITTED"
+      ).length;
+      const totalViolations = rows.reduce(
+        (sum, r) => sum + r.violationCount,
+        0
       );
 
-      const tableData = rows.map((res) => {
+      // Summary Cards Container
+      currentY += 2;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(30, 41, 59);
+      doc.text(
+        `Students: ${totalStudents} \u00B7 Average Score: ${avgScore} \u00B7 Completed: ${completedCount} \u00B7 Violations: ${totalViolations}`,
+        margin,
+        currentY
+      );
+
+      currentY += 2.5;
+      const cards = [
+        { label: "STUDENTS", value: String(totalStudents) },
+        { label: "AVERAGE SCORE", value: avgScore },
+        { label: "COMPLETED", value: String(completedCount) },
+        { label: "VIOLATIONS", value: String(totalViolations) },
+      ];
+
+      const cardGap = 3;
+      const cardWidth =
+        (contentWidth - cardGap * (cards.length - 1)) / cards.length;
+      const cardHeight = 12;
+
+      cards.forEach((card, idx) => {
+        const cardX = margin + idx * (cardWidth + cardGap);
+        doc.setFillColor(248, 250, 252);
+        doc.setDrawColor(226, 232, 240);
+        doc.roundedRect(cardX, currentY, cardWidth, cardHeight, 1.5, 1.5, "FD");
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(6.5);
+        doc.setTextColor(100, 116, 139); // slate-500
+        doc.text(card.label, cardX + 3, currentY + 4);
+
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(10.5);
+        doc.setTextColor(15, 23, 42); // slate-900
+        doc.text(card.value, cardX + 3, currentY + 9.5);
+      });
+
+      currentY += cardHeight + 6;
+
+      // 3. Detailed Student Table
+      const headers = isLandscape
+        ? [
+            [
+              "#",
+              "Student",
+              "PRN",
+              "Email",
+              "Status",
+              "Score",
+              "Total Pts",
+              "Correct",
+              "Violations",
+              "Submitted At",
+            ],
+          ]
+        : [
+            [
+              "#",
+              "Student",
+              "PRN",
+              "Status",
+              "Score",
+              "Total",
+              "Correct",
+              "Violations",
+              "Submitted",
+            ],
+          ];
+
+      const tableData = rows.map((res, index) => {
         const correctCount = res.submissions.filter((s) => s.isCorrect).length;
-        return [
-          res.student.name || "Unknown",
-          res.student.prn || "N/A",
-          res.status,
-          `${res.percentage.toFixed(1)}%`,
-          res.totalScore.toFixed(1),
-          `${correctCount}/${questionsCount}`,
-          String(res.violationCount),
-        ];
+        const submittedStr = res.submittedAt
+          ? new Date(res.submittedAt).toLocaleDateString("en-GB", {
+              day: "2-digit",
+              month: "short",
+            }) +
+            " " +
+            new Date(res.submittedAt).toLocaleTimeString("en-US", {
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: true,
+            })
+          : "—";
+
+        if (isLandscape) {
+          return [
+            String(index + 1),
+            res.student.name || "Unknown",
+            res.student.prn || "N/A",
+            res.student.email || "N/A",
+            res.status,
+            `${res.percentage.toFixed(1)}%`,
+            res.totalScore.toFixed(1),
+            `${correctCount}/${questionsCount}`,
+            String(res.violationCount),
+            submittedStr,
+          ];
+        } else {
+          return [
+            String(index + 1),
+            res.student.name || "Unknown",
+            res.student.prn || "N/A",
+            res.status,
+            `${res.percentage.toFixed(1)}%`,
+            res.totalScore.toFixed(1),
+            `${correctCount}/${questionsCount}`,
+            String(res.violationCount),
+            submittedStr,
+          ];
+        }
       });
 
       autoTable(doc, {
-        head: [["Student", "PRN", "Status", "Score %", "Total", "Correct", "Violations"]],
+        head: headers,
         body: tableData,
-        startY: 34,
+        startY: currentY,
         theme: "striped",
-        headStyles: { fillColor: [40, 40, 60] },
-        styles: { fontSize: 8 },
+        showHead: "everyPage",
+        rowPageBreak: "avoid",
+        headStyles: {
+          fillColor: [30, 41, 59], // slate-800
+          textColor: [255, 255, 255],
+          fontStyle: "bold",
+          fontSize: isLandscape ? 8 : 7.5,
+          cellPadding: 2,
+        },
+        bodyStyles: {
+          textColor: [30, 41, 59],
+          fontSize: isLandscape ? 7.5 : 7,
+          cellPadding: 2,
+          valign: "middle",
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252],
+        },
+        columnStyles: isLandscape
+          ? {
+              0: { halign: "center", cellWidth: 10 },
+              1: { halign: "left" },
+              2: { halign: "left", cellWidth: 26 },
+              3: { halign: "left" },
+              4: { halign: "center", cellWidth: 24 },
+              5: { halign: "right", cellWidth: 18 },
+              6: { halign: "right", cellWidth: 18 },
+              7: { halign: "center", cellWidth: 18 },
+              8: { halign: "center", cellWidth: 18 },
+              9: { halign: "center", cellWidth: 32 },
+            }
+          : {
+              0: { halign: "center", cellWidth: 8 },
+              1: { halign: "left" },
+              2: { halign: "left", cellWidth: 26 },
+              3: { halign: "center", cellWidth: 22 },
+              4: { halign: "right", cellWidth: 16 },
+              5: { halign: "right", cellWidth: 16 },
+              6: { halign: "center", cellWidth: 16 },
+              7: { halign: "center", cellWidth: 16 },
+              8: { halign: "center", cellWidth: 22 },
+            },
       });
 
-      doc.save(`${examTitle}_Results_Filtered.pdf`);
+      // 4. Repeated Footer Page Numbers on Every Page
+      const totalPages = (
+        doc.internal as unknown as { getNumberOfPages: () => number }
+      ).getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.5);
+        doc.setTextColor(148, 163, 184); // slate-400
+        doc.text(
+          "SmartAssess Examination System — Confidential Academic Record",
+          margin,
+          pageHeight - 7
+        );
+        doc.text(
+          `Page ${i} of ${totalPages}`,
+          pageWidth - margin,
+          pageHeight - 7,
+          { align: "right" }
+        );
+      }
+
+      doc.save(`${examTitle.replace(/[^a-zA-Z0-9_-]/g, "_")}_Results_Report.pdf`);
       toast.success(`Exported ${rows.length} results to PDF.`);
     } catch (err) {
       console.error("PDF Export Error:", err);

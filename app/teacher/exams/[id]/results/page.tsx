@@ -130,6 +130,7 @@ export default async function ExamResultsPage({
           <ResultExporter
             examId={id}
             examTitle={exam.title}
+            batchName={exam.batch.name}
             questionsCount={exam._count.questions}
             totalFiltered={total}
             filter={filter}

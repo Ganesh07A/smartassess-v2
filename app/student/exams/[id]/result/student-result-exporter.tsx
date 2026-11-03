@@ -23,7 +23,7 @@ interface StudentResultExporterProps {
     question: {
       content: string;
       type: string;
-    }
+    };
   }[];
   submissions: {
     questionId: string;
@@ -39,7 +39,7 @@ export default function StudentResultExporter({
   totalPoints,
   percentage,
   questions,
-  submissions
+  submissions,
 }: StudentResultExporterProps) {
   const [isExporting, setIsExporting] = useState(false);
 
@@ -68,29 +68,29 @@ export default function StudentResultExporter({
       doc.setFontSize(14);
       doc.setTextColor(0);
       doc.text("Summary", 20, 65);
-      
+
       autoTable(doc, {
         startY: 70,
-        head: [['Metric', 'Value']],
+        head: [["Metric", "Value"]],
         body: [
-          ['Total Points Obtained', `${score.toFixed(1)} / ${totalPoints.toFixed(1)}`],
-          ['Percentage', `${percentage.toFixed(2)}%`],
-          ['Result Status', percentage >= 40 ? 'PASS' : 'FAIL'],
+          ["Total Points Obtained", `${score.toFixed(1)} / ${totalPoints.toFixed(1)}`],
+          ["Percentage", `${percentage.toFixed(2)}%`],
+          ["Result Status", percentage >= 40 ? "PASS" : "FAIL"],
         ],
-        theme: 'grid',
+        theme: "grid",
         headStyles: { fillColor: [30, 64, 175] },
-        styles: { fontSize: 10 }
+        styles: { fontSize: 10 },
       });
 
       // Question Breakdown
       const tableData = questions.map((eq, idx) => {
-        const sub = submissions.find(s => s.questionId === eq.questionId);
+        const sub = submissions.find((s) => s.questionId === eq.questionId);
         return [
           (idx + 1).toString(),
           eq.question.content.substring(0, 50) + (eq.question.content.length > 50 ? "..." : ""),
           eq.question.type,
-          sub?.isCorrect ? "Correct" : (sub?.pointsAwarded && sub.pointsAwarded > 0 ? "Partial" : "Incorrect"),
-          sub?.pointsAwarded?.toFixed(1) || "0.0"
+          sub?.isCorrect ? "Correct" : sub?.pointsAwarded && sub.pointsAwarded > 0 ? "Partial" : "Incorrect",
+          sub?.pointsAwarded?.toFixed(1) || "0.0",
         ];
       });
 
@@ -100,11 +100,13 @@ export default function StudentResultExporter({
 
       autoTable(doc, {
         startY: finalY + 5,
-        head: [['#', 'Question', 'Type', 'Status', 'Points']],
+        head: [["#", "Question", "Type", "Status", "Points"]],
         body: tableData,
-        theme: 'striped',
+        theme: "striped",
+        showHead: "everyPage",
+        rowPageBreak: "avoid",
         headStyles: { fillColor: [75, 85, 99] },
-        styles: { fontSize: 9 }
+        styles: { fontSize: 9 },
       });
 
       doc.save(`${student.name}_${exam.title}_Report.pdf`);
