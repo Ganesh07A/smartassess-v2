@@ -156,7 +156,7 @@ export default function ResultExporter({
         currentY += 4.5;
       });
 
-      // 2. Metrics Calculation
+      // 2. Metrics Calculation (Violations omitted from top summary per request)
       const totalStudents = rows.length;
       const avgScore =
         totalStudents > 0
@@ -167,18 +167,14 @@ export default function ResultExporter({
       const completedCount = rows.filter(
         (r) => r.status === "COMPLETED" || r.status === "FORCE_SUBMITTED"
       ).length;
-      const totalViolations = rows.reduce(
-        (sum, r) => sum + r.violationCount,
-        0
-      );
 
-      // Summary Cards Container
+      // Summary Cards Container (Students, Average Score, Completed)
       currentY += 2;
       doc.setFont("helvetica", "bold");
       doc.setFontSize(8);
       doc.setTextColor(30, 41, 59);
       doc.text(
-        `Students: ${totalStudents} \u00B7 Average Score: ${avgScore} \u00B7 Completed: ${completedCount} \u00B7 Violations: ${totalViolations}`,
+        `Students: ${totalStudents} \u00B7 Average Score: ${avgScore} \u00B7 Completed: ${completedCount}`,
         margin,
         currentY
       );
@@ -188,10 +184,9 @@ export default function ResultExporter({
         { label: "STUDENTS", value: String(totalStudents) },
         { label: "AVERAGE SCORE", value: avgScore },
         { label: "COMPLETED", value: String(completedCount) },
-        { label: "VIOLATIONS", value: String(totalViolations) },
       ];
 
-      const cardGap = 3;
+      const cardGap = 4;
       const cardWidth =
         (contentWidth - cardGap * (cards.length - 1)) / cards.length;
       const cardHeight = 12;
@@ -205,17 +200,17 @@ export default function ResultExporter({
         doc.setFont("helvetica", "bold");
         doc.setFontSize(6.5);
         doc.setTextColor(100, 116, 139); // slate-500
-        doc.text(card.label, cardX + 3, currentY + 4);
+        doc.text(card.label, cardX + 3.5, currentY + 4);
 
         doc.setFont("helvetica", "bold");
         doc.setFontSize(10.5);
         doc.setTextColor(15, 23, 42); // slate-900
-        doc.text(card.value, cardX + 3, currentY + 9.5);
+        doc.text(card.value, cardX + 3.5, currentY + 9.5);
       });
 
       currentY += cardHeight + 6;
 
-      // 3. Detailed Student Table
+      // 3. Detailed Student Table ("Submitted At" column removed per request)
       const headers = isLandscape
         ? [
             [
@@ -228,7 +223,6 @@ export default function ResultExporter({
               "Total Pts",
               "Correct",
               "Violations",
-              "Submitted At",
             ],
           ]
         : [
@@ -241,24 +235,11 @@ export default function ResultExporter({
               "Total",
               "Correct",
               "Violations",
-              "Submitted",
             ],
           ];
 
       const tableData = rows.map((res, index) => {
         const correctCount = res.submissions.filter((s) => s.isCorrect).length;
-        const submittedStr = res.submittedAt
-          ? new Date(res.submittedAt).toLocaleDateString("en-GB", {
-              day: "2-digit",
-              month: "short",
-            }) +
-            " " +
-            new Date(res.submittedAt).toLocaleTimeString("en-US", {
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: true,
-            })
-          : "—";
 
         if (isLandscape) {
           return [
@@ -271,7 +252,6 @@ export default function ResultExporter({
             res.totalScore.toFixed(1),
             `${correctCount}/${questionsCount}`,
             String(res.violationCount),
-            submittedStr,
           ];
         } else {
           return [
@@ -283,7 +263,6 @@ export default function ResultExporter({
             res.totalScore.toFixed(1),
             `${correctCount}/${questionsCount}`,
             String(res.violationCount),
-            submittedStr,
           ];
         }
       });
@@ -315,25 +294,23 @@ export default function ResultExporter({
           ? {
               0: { halign: "center", cellWidth: 10 },
               1: { halign: "left" },
-              2: { halign: "left", cellWidth: 26 },
+              2: { halign: "left", cellWidth: 28 },
               3: { halign: "left" },
-              4: { halign: "center", cellWidth: 24 },
-              5: { halign: "right", cellWidth: 18 },
-              6: { halign: "right", cellWidth: 18 },
-              7: { halign: "center", cellWidth: 18 },
-              8: { halign: "center", cellWidth: 18 },
-              9: { halign: "center", cellWidth: 32 },
+              4: { halign: "center", cellWidth: 26 },
+              5: { halign: "right", cellWidth: 20 },
+              6: { halign: "right", cellWidth: 20 },
+              7: { halign: "center", cellWidth: 20 },
+              8: { halign: "center", cellWidth: 20 },
             }
           : {
-              0: { halign: "center", cellWidth: 8 },
+              0: { halign: "center", cellWidth: 10 },
               1: { halign: "left" },
-              2: { halign: "left", cellWidth: 26 },
-              3: { halign: "center", cellWidth: 22 },
-              4: { halign: "right", cellWidth: 16 },
-              5: { halign: "right", cellWidth: 16 },
-              6: { halign: "center", cellWidth: 16 },
-              7: { halign: "center", cellWidth: 16 },
-              8: { halign: "center", cellWidth: 22 },
+              2: { halign: "left", cellWidth: 28 },
+              3: { halign: "center", cellWidth: 24 },
+              4: { halign: "right", cellWidth: 18 },
+              5: { halign: "right", cellWidth: 18 },
+              6: { halign: "center", cellWidth: 18 },
+              7: { halign: "center", cellWidth: 18 },
             },
       });
 
