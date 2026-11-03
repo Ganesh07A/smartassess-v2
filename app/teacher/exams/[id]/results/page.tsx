@@ -186,8 +186,20 @@ export default async function ExamResultsPage({
         </Link>
       </div>
 
-      {tab === "analytics" && analytics ? (
-        <AnalyticsDashboard analytics={analytics} examId={id} />
+      {tab === "analytics" ? (
+        analytics ? (
+          <AnalyticsDashboard analytics={analytics} examId={id} />
+        ) : (
+          <div className="bg-slate-50 p-12 rounded-3xl border border-slate-200 text-center space-y-3">
+            <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto">
+              <BarChart3 className="w-7 h-7 text-indigo-600" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800">Analytics Unavailable</h3>
+            <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+              No analytics data could be computed for this examination.
+            </p>
+          </div>
+        )
       ) : (
         <ResultsTable
           rows={rows}

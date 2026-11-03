@@ -67,7 +67,6 @@ export interface TestAnalysis {
   sd: number;
   min: number;
   max: number;
-  percentile: (score: number) => number; // 0..100
   items: ItemAnalysis[];
   truncated: boolean; // true when fetch cap was hit
 }
@@ -136,12 +135,6 @@ export function analyzeTestItems(input: ItemAnalysisInput): TestAnalysis {
   const medianTotal = calcMedian(totals);
   const minTotal = totals.length > 0 ? Math.min(...totals) : 0;
   const maxTotal = totals.length > 0 ? Math.max(...totals) : 0;
-
-  const percentile = (score: number): number => {
-    if (n === 0) return 0;
-    const belowCount = totals.filter((t) => t < score).length;
-    return (belowCount / n) * 100;
-  };
 
   // 2. Identify top and bottom groups for discrimination and distractor analysis
   // Sort session indices by total score descending
@@ -283,7 +276,6 @@ export function analyzeTestItems(input: ItemAnalysisInput): TestAnalysis {
     sd: sdTotal,
     min: minTotal,
     max: maxTotal,
-    percentile,
     items: itemAnalyses,
     truncated,
   };
