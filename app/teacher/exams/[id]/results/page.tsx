@@ -35,7 +35,7 @@ export default async function ExamResultsPage({
   const { id } = await params;
   const rawParams = await searchParams;
   const filter = readParams(resultFilterSchema, rawParams);
-  const tab = filter.tab || "table";
+  const tab = (rawParams?.tab as string) || "table";
 
   const teacher = await requireTeacher();
 
@@ -121,7 +121,7 @@ export default async function ExamResultsPage({
               Results: {exam.title}
             </h2>
             <p className="text-slate-500 text-xs font-medium">
-              {exam.batch.name} • {exam._count.questions} Questions
+              {exam.batch?.name ?? "No Batch"} • {exam._count.questions} Questions
             </p>
           </div>
         </div>
@@ -130,7 +130,7 @@ export default async function ExamResultsPage({
           <ResultExporter
             examId={id}
             examTitle={exam.title}
-            batchName={exam.batch.name}
+            batchName={exam.batch?.name}
             questionsCount={exam._count.questions}
             totalFiltered={total}
             filter={filter}

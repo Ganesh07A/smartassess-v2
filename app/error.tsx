@@ -30,6 +30,12 @@ export default function AppError({
           The action could not be completed. Your saved answers are safe — please retry, or go back
           to your dashboard.
         </p>
+        {error?.message && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-left text-xs font-mono text-red-800 break-words whitespace-pre-wrap">
+            <div>{error.message}</div>
+            {error.digest && <div className="mt-1 text-slate-500">Digest: {error.digest}</div>}
+          </div>
+        )}
         <div className="flex items-center justify-center gap-3">
           <button
             onClick={reset}
