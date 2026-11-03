@@ -30,8 +30,17 @@ export function ResultsTable({
   filterDefs,
   examId,
 }: ResultsTableProps) {
-  // Columns strictly matching: Student, PRN, Status, Score%, Total, Correct, Violations
+  // Columns strictly matching: Sr. No., Student, PRN, Status, Score%, Total, Correct, Violations
   const columns: Column<ResultListRow>[] = [
+    {
+      key: "srNo",
+      header: "Sr. No.",
+      render: (_row, idx) => (
+        <span className="text-xs font-bold text-slate-500 font-mono">
+          {(page - 1) * perPage + idx + 1}
+        </span>
+      ),
+    },
     {
       key: "student",
       header: "Student",

@@ -9,7 +9,7 @@ export interface Column<T> {
   header: string;
   sortKey?: string;
   align?: "left" | "right";
-  render: (row: T) => React.ReactNode;
+  render: (row: T, index: number) => React.ReactNode;
   className?: string;
 }
 
@@ -98,7 +98,7 @@ export function DataTable<T>({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
-              {rows.map((row) => (
+              {rows.map((row, rowIndex) => (
                 <tr
                   key={rowKey(row)}
                   className="hover:bg-slate-50/70 transition-colors"
@@ -110,7 +110,7 @@ export function DataTable<T>({
                         col.align === "right" ? "text-right" : "text-left"
                       } ${col.className ?? ""}`}
                     >
-                      {col.render(row)}
+                      {col.render(row, rowIndex)}
                     </td>
                   ))}
                 </tr>
@@ -122,7 +122,7 @@ export function DataTable<T>({
 
       {/* Mobile Card Stack (< md) — Eliminates unusable horizontal scroll on 375px screens */}
       <div className="md:hidden space-y-3">
-        {rows.map((row) => (
+        {rows.map((row, rowIndex) => (
           <div
             key={rowKey(row)}
             className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm space-y-2.5"
@@ -135,7 +135,7 @@ export function DataTable<T>({
                 <span className="font-semibold text-slate-400 uppercase tracking-wider text-[10px]">
                   {col.header}
                 </span>
-                <div className="text-right text-slate-800">{col.render(row)}</div>
+                <div className="text-right text-slate-800">{col.render(row, rowIndex)}</div>
               </div>
             ))}
           </div>

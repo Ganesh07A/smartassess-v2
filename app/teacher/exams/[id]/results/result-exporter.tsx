@@ -47,9 +47,10 @@ export default function ResultExporter({
         return;
       }
 
-      const data = rows.map((res) => {
+      const data = rows.map((res, index) => {
         const correctCount = res.submissions.filter((s) => s.isCorrect).length;
         return {
+          "Sr. No.": index + 1,
           "Student Name": res.student.name || "Unknown",
           PRN: res.student.prn || "N/A",
           Email: res.student.email || "N/A",
@@ -74,7 +75,7 @@ export default function ResultExporter({
         (w, r) => Math.max(w, r["Student Name"].length),
         12
       );
-      worksheet["!cols"] = [{ wch: maxWidth + 5 }];
+      worksheet["!cols"] = [{ wch: 8 }, { wch: maxWidth + 5 }];
 
       XLSX.writeFile(
         workbook,
@@ -212,14 +213,15 @@ export default function ResultExporter({
       currentY += cardHeight + 6;
 
       // 3. Detailed Student Table:
-      // STRICT HEADERS ONLY: Student, PRN, Status, Score%, Total, Correct, Violations
+      // STRICT HEADERS: Sr. No., Student, PRN, Status, Score%, Total, Correct, Violations
       const headers = [
-        ["Student", "PRN", "Status", "Score%", "Total", "Correct", "Violations"],
+        ["Sr. No.", "Student", "PRN", "Status", "Score%", "Total", "Correct", "Violations"],
       ];
 
-      const tableData = rows.map((res) => {
+      const tableData = rows.map((res, index) => {
         const correctCount = res.submissions.filter((s) => s.isCorrect).length;
         return [
+          String(index + 1),
           res.student.name || "Unknown",
           res.student.prn || "N/A",
           res.status,
@@ -255,22 +257,24 @@ export default function ResultExporter({
         },
         columnStyles: isLandscape
           ? {
-              0: { halign: "left" }, // Student (takes available width)
-              1: { halign: "left", cellWidth: 38 }, // PRN
-              2: { halign: "center", cellWidth: 32 }, // Status
-              3: { halign: "right", cellWidth: 26 }, // Score %
-              4: { halign: "right", cellWidth: 26 }, // Total
-              5: { halign: "center", cellWidth: 26 }, // Correct
-              6: { halign: "center", cellWidth: 26 }, // Violations
+              0: { halign: "center", cellWidth: 16 }, // Sr. No.
+              1: { halign: "left" }, // Student (takes available width)
+              2: { halign: "left", cellWidth: 38 }, // PRN
+              3: { halign: "center", cellWidth: 30 }, // Status
+              4: { halign: "right", cellWidth: 24 }, // Score%
+              5: { halign: "right", cellWidth: 24 }, // Total
+              6: { halign: "center", cellWidth: 24 }, // Correct
+              7: { halign: "center", cellWidth: 24 }, // Violations
             }
           : {
-              0: { halign: "left" }, // Student (takes available width)
-              1: { halign: "left", cellWidth: 30 }, // PRN
-              2: { halign: "center", cellWidth: 25 }, // Status
-              3: { halign: "right", cellWidth: 22 }, // Score %
-              4: { halign: "right", cellWidth: 22 }, // Total
-              5: { halign: "center", cellWidth: 22 }, // Correct
-              6: { halign: "center", cellWidth: 22 }, // Violations
+              0: { halign: "center", cellWidth: 14 }, // Sr. No.
+              1: { halign: "left" }, // Student (takes available width)
+              2: { halign: "left", cellWidth: 28 }, // PRN
+              3: { halign: "center", cellWidth: 22 }, // Status
+              4: { halign: "right", cellWidth: 20 }, // Score%
+              5: { halign: "right", cellWidth: 20 }, // Total
+              6: { halign: "center", cellWidth: 20 }, // Correct
+              7: { halign: "center", cellWidth: 20 }, // Violations
             },
       });
 
