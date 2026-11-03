@@ -156,7 +156,7 @@ export default function ResultExporter({
         currentY += 4.5;
       });
 
-      // 2. Metrics Calculation (Violations omitted from top summary per request)
+      // 2. Metrics Calculation (Violations omitted from top summary per user request)
       const totalStudents = rows.length;
       const avgScore =
         totalStudents > 0
@@ -168,7 +168,7 @@ export default function ResultExporter({
         (r) => r.status === "COMPLETED" || r.status === "FORCE_SUBMITTED"
       ).length;
 
-      // Summary Cards Container (Students, Average Score, Completed)
+      // Summary Header Line
       currentY += 2;
       doc.setFont("helvetica", "bold");
       doc.setFontSize(8);
@@ -179,6 +179,7 @@ export default function ResultExporter({
         currentY
       );
 
+      // Summary Cards Container (3 cards: Students, Average Score, Completed)
       currentY += 2.5;
       const cards = [
         { label: "STUDENTS", value: String(totalStudents) },
@@ -210,61 +211,23 @@ export default function ResultExporter({
 
       currentY += cardHeight + 6;
 
-      // 3. Detailed Student Table ("Submitted At" column removed per request)
-      const headers = isLandscape
-        ? [
-            [
-              "#",
-              "Student",
-              "PRN",
-              "Email",
-              "Status",
-              "Score",
-              "Total Pts",
-              "Correct",
-              "Violations",
-            ],
-          ]
-        : [
-            [
-              "#",
-              "Student",
-              "PRN",
-              "Status",
-              "Score",
-              "Total",
-              "Correct",
-              "Violations",
-            ],
-          ];
+      // 3. Detailed Student Table:
+      // STRICT HEADERS ONLY: Student, PRN, Status, Score %, Total, Correct, Violations
+      const headers = [
+        ["Student", "PRN", "Status", "Score %", "Total", "Correct", "Violations"],
+      ];
 
-      const tableData = rows.map((res, index) => {
+      const tableData = rows.map((res) => {
         const correctCount = res.submissions.filter((s) => s.isCorrect).length;
-
-        if (isLandscape) {
-          return [
-            String(index + 1),
-            res.student.name || "Unknown",
-            res.student.prn || "N/A",
-            res.student.email || "N/A",
-            res.status,
-            `${res.percentage.toFixed(1)}%`,
-            res.totalScore.toFixed(1),
-            `${correctCount}/${questionsCount}`,
-            String(res.violationCount),
-          ];
-        } else {
-          return [
-            String(index + 1),
-            res.student.name || "Unknown",
-            res.student.prn || "N/A",
-            res.status,
-            `${res.percentage.toFixed(1)}%`,
-            res.totalScore.toFixed(1),
-            `${correctCount}/${questionsCount}`,
-            String(res.violationCount),
-          ];
-        }
+        return [
+          res.student.name || "Unknown",
+          res.student.prn || "N/A",
+          res.status,
+          `${res.percentage.toFixed(1)}%`,
+          res.totalScore.toFixed(1),
+          `${correctCount}/${questionsCount}`,
+          String(res.violationCount),
+        ];
       });
 
       autoTable(doc, {
@@ -292,25 +255,22 @@ export default function ResultExporter({
         },
         columnStyles: isLandscape
           ? {
-              0: { halign: "center", cellWidth: 10 },
-              1: { halign: "left" },
-              2: { halign: "left", cellWidth: 28 },
-              3: { halign: "left" },
-              4: { halign: "center", cellWidth: 26 },
-              5: { halign: "right", cellWidth: 20 },
-              6: { halign: "right", cellWidth: 20 },
-              7: { halign: "center", cellWidth: 20 },
-              8: { halign: "center", cellWidth: 20 },
+              0: { halign: "left" }, // Student (takes available width)
+              1: { halign: "left", cellWidth: 38 }, // PRN
+              2: { halign: "center", cellWidth: 32 }, // Status
+              3: { halign: "right", cellWidth: 26 }, // Score %
+              4: { halign: "right", cellWidth: 26 }, // Total
+              5: { halign: "center", cellWidth: 26 }, // Correct
+              6: { halign: "center", cellWidth: 26 }, // Violations
             }
           : {
-              0: { halign: "center", cellWidth: 10 },
-              1: { halign: "left" },
-              2: { halign: "left", cellWidth: 28 },
-              3: { halign: "center", cellWidth: 24 },
-              4: { halign: "right", cellWidth: 18 },
-              5: { halign: "right", cellWidth: 18 },
-              6: { halign: "center", cellWidth: 18 },
-              7: { halign: "center", cellWidth: 18 },
+              0: { halign: "left" }, // Student (takes available width)
+              1: { halign: "left", cellWidth: 30 }, // PRN
+              2: { halign: "center", cellWidth: 25 }, // Status
+              3: { halign: "right", cellWidth: 22 }, // Score %
+              4: { halign: "right", cellWidth: 22 }, // Total
+              5: { halign: "center", cellWidth: 22 }, // Correct
+              6: { halign: "center", cellWidth: 22 }, // Violations
             },
       });
 
